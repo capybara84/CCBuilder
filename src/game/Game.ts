@@ -17,6 +17,7 @@ export class Game {
   private clock = new THREE.Clock();
   private highlight: THREE.LineSegments; // ブロックハイライト
   private sky: Sky;
+  private paused = false;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -74,35 +75,106 @@ export class Game {
       this.player.selectedBlockId = blockId;
     });
 
-    // キーボードショートカット
-    window.addEventListener('keydown', (e) => {
-      // Fキーでモード切替
-      if (e.code === 'KeyF') {
-        this.player.toggleMode();
-        this.hud.modeButton.setActive(this.player.mode);
-      }
-      // 数字キー1-9でホットバー選択
-      if (e.code >= 'Digit1' && e.code <= 'Digit9') {
-        this.hud.hotbar.select(parseInt(e.code.charAt(5)) - 1);
-      }
-      // 0キーで10番目
-      if (e.code === 'Digit0') {
-        this.hud.hotbar.select(9);
-      }
-      // Ctrl+S: 保存
-      if (e.code === 'KeyS' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        MapSerializer.save(this.world);
-      }
-      // Ctrl+O: ロード
-      if (e.code === 'KeyO' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        MapSerializer.load(this.world);
-      }
+    // インベントリ: ブロック選択 → ホットバーに配置
+    this.hud.inventory.onSelect((blockId) => {
+      this.hud.hotbar.setSelectedSlot(blockId);
     });
+    this.hud.inventory.onClose(() => {
+      this.closeInventory();
+    });
+
+    // ESCメニュー: コールバック
+    this.hud.pauseMenu.onResume(() => this.resume());
+    this.hud.pauseMenu.onInventory(() => {
+      this.hud.pauseMenu.hide();
+      this.openInventory();
+    });
+    this.hud.pauseMenu.onSave(() => {
+      MapSerializer.save(this.world);
+    });
+    this.hud.pauseMenu.onLoad(() => {
+      MapSerializer.load(this.world);
+      this.resume();
+    });
+
+    // キーボードショートカット
+    window.addEventListener('keydown', (e) => this.onKeyDown(e));
 
     // リサイズ
     window.addEventListener('resize', () => this.onResize());
+  }
+
+  private onKeyDown(e: KeyboardEvent): void {
+    // ESC キー: メニュー/インベントリの切替
+    if (e.code === 'Escape') {
+      if (this.hud.inventory.visible) {
+        this.closeInventory();
+        return;
+      }
+      if (this.paused) {
+        this.resume();
+      } else {
+        this.pause();
+      }
+      return;
+    }
+
+    // E キー: インベントリ
+    if (e.code === 'KeyE') {
+      if (this.hud.inventory.visible) {
+        this.closeInventory();
+      } else {
+        if (this.hud.pauseMenu.visible) this.hud.pauseMenu.hide();
+        this.openInventory();
+      }
+      return;
+    }
+
+    // 一時停止中は以下のショートカットを無効化
+    if (this.paused) return;
+
+    // Fキーでモード切替
+    if (e.code === 'KeyF') {
+      this.player.toggleMode();
+      this.hud.modeButton.setActive(this.player.mode);
+    }
+    // 数字キー1-6でホットバー選択
+    if (e.code >= 'Digit1' && e.code <= 'Digit6') {
+      this.hud.hotbar.select(parseInt(e.code.charAt(5)) - 1);
+    }
+    // Ctrl+S: 保存
+    if (e.code === 'KeyS' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      MapSerializer.save(this.world);
+    }
+    // Ctrl+O: ロード
+    if (e.code === 'KeyO' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      MapSerializer.load(this.world);
+    }
+  }
+
+  private pause(): void {
+    this.paused = true;
+    this.hud.pauseMenu.show();
+  }
+
+  private resume(): void {
+    this.paused = false;
+    this.hud.pauseMenu.hide();
+    this.hud.inventory.hide();
+  }
+
+  private openInventory(): void {
+    this.paused = true;
+    this.hud.inventory.show();
+  }
+
+  private closeInventory(): void {
+    this.hud.inventory.hide();
+    // ESCメニューも閉じてゲーム再開
+    this.paused = false;
+    this.hud.pauseMenu.hide();
   }
 
   start(): void {
@@ -113,41 +185,47 @@ export class Game {
   private loop = (): void => {
     requestAnimationFrame(this.loop);
 
-    const dt = Math.min(this.clock.getDelta(), 1 / 30); // 上限を設定
+    const dt = Math.min(this.clock.getDelta(), 1 / 30);
 
-    // 入力更新
-    this.input.update(dt);
+    // 一時停止中はゲームロジックをスキップ（描画は続行）
+    if (!this.paused) {
+      // 入力更新
+      this.input.update(dt);
 
-    // スクロールでホットバー選択変更
-    if (this.input.scrollDelta !== 0) {
-      const hotbar = this.hud.hotbar;
-      hotbar.select(hotbar.selectedIndex + this.input.scrollDelta);
-    }
+      // スクロールでホットバー選択変更
+      if (this.input.scrollDelta !== 0) {
+        const hotbar = this.hud.hotbar;
+        hotbar.select(hotbar.selectedIndex + this.input.scrollDelta);
+      }
 
-    // 物理シミュレーション
-    this.physicsWorld.step();
+      // 物理シミュレーション
+      this.physicsWorld.step();
 
-    // プレイヤー更新
-    this.player.update(dt);
+      // プレイヤー更新
+      this.player.update(dt);
 
-    // 空の更新（カメラ追従・雲スクロール）
-    this.sky.update(this.player.camera, dt);
+      // ブロックハイライト更新
+      const hit = this.player.currentHit;
+      if (hit) {
+        this.highlight.visible = true;
+        this.highlight.position.set(
+          hit.blockPos.x + 0.5,
+          hit.blockPos.y + 0.5,
+          hit.blockPos.z + 0.5,
+        );
+      } else {
+        this.highlight.visible = false;
+      }
 
-    // ブロックハイライト更新
-    const hit = this.player.currentHit;
-    if (hit) {
-      this.highlight.visible = true;
-      this.highlight.position.set(
-        hit.blockPos.x + 0.5,
-        hit.blockPos.y + 0.5,
-        hit.blockPos.z + 0.5,
-      );
+      // 入力デルタリセット
+      this.input.resetDelta();
     } else {
-      this.highlight.visible = false;
+      // 一時停止中もクロックを消費（再開時に大きなdtが出ないように）
+      this.clock.getDelta();
     }
 
-    // 入力デルタリセット
-    this.input.resetDelta();
+    // 空の更新（一時停止中も雲は動かす）
+    this.sky.update(this.player.camera, dt);
 
     // 描画
     this.renderer.render(this.scene, this.player.camera);
