@@ -1,4 +1,5 @@
 import { BlockTypes, BlockDef } from '../voxel/BlockTypes';
+import { getAtlas } from '../voxel/Chunk';
 
 /**
  * 画面下部中央のブロック選択ホットバー
@@ -28,14 +29,29 @@ export class Hotbar {
     this.blocks.forEach((block, i) => {
       const slot = document.createElement('div');
       slot.style.cssText = this.slotStyle(i === 0);
-      // ブロック色サンプル
-      const swatch = document.createElement('div');
+      // テクスチャプレビュー
+      const swatch = document.createElement('canvas');
+      swatch.width = 28;
+      swatch.height = 28;
       swatch.style.cssText = `
         width: 28px; height: 28px;
-        background: #${block.color.getHexString()};
         border-radius: 2px;
         margin-bottom: 2px;
+        image-rendering: pixelated;
       `;
+      // アトラスから切り出して描画
+      const atlas = getAtlas();
+      const blockUV = atlas.blockUVs.get(block.id);
+      if (blockUV) {
+        const [col, row] = blockUV.top; // 上面テクスチャをプレビュー
+        const swatchCtx = swatch.getContext('2d')!;
+        swatchCtx.imageSmoothingEnabled = false;
+        swatchCtx.drawImage(
+          atlas.canvas,
+          col * 16, row * 16, 16, 16,
+          0, 0, 28, 28,
+        );
+      }
       // ブロック名
       const label = document.createElement('div');
       label.textContent = block.name;
