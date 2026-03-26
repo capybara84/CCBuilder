@@ -8,9 +8,10 @@ export const CHUNK_SIZE = 16;
 type FaceType = 'top' | 'bottom' | 'side';
 
 // 6方向: +X, -X, +Y, -Y, +Z, -Z
+// 頂点順序は全面統一: [下左, 下右, 上右, 上左] → UV: (u0,v0), (u1,v0), (u1,v1), (u0,v1)
 const FACES: { dir: number[]; verts: number[][]; normal: number[]; faceType: FaceType }[] = [
-  { dir: [1, 0, 0], verts: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]], normal: [1,0,0], faceType: 'side' },
-  { dir: [-1, 0, 0], verts: [[0,0,1],[0,1,1],[0,1,0],[0,0,0]], normal: [-1,0,0], faceType: 'side' },
+  { dir: [1, 0, 0], verts: [[1,0,1],[1,0,0],[1,1,0],[1,1,1]], normal: [1,0,0], faceType: 'side' },
+  { dir: [-1, 0, 0], verts: [[0,0,0],[0,0,1],[0,1,1],[0,1,0]], normal: [-1,0,0], faceType: 'side' },
   { dir: [0, 1, 0], verts: [[0,1,0],[0,1,1],[1,1,1],[1,1,0]], normal: [0,1,0], faceType: 'top' },
   { dir: [0, -1, 0], verts: [[0,0,1],[0,0,0],[1,0,0],[1,0,1]], normal: [0,-1,0], faceType: 'bottom' },
   { dir: [0, 0, 1], verts: [[0,0,1],[1,0,1],[1,1,1],[0,1,1]], normal: [0,0,1], faceType: 'side' },
@@ -100,8 +101,8 @@ export class Chunk {
                 positions.push(v[0] + x, v[1] + y, v[2] + z);
                 normals.push(face.normal[0], face.normal[1], face.normal[2]);
               }
-              // UV: 4頂点を面のテクスチャ領域にマッピング
-              uvs.push(u0, v0, u0, v1, u1, v1, u1, v0);
+              // UV: [下左, 下右, 上右, 上左]
+              uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
 
               indices.push(
                 vertCount, vertCount + 1, vertCount + 2,
