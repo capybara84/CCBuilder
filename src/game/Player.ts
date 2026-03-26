@@ -25,6 +25,7 @@ export class Player {
   private pitch = 0;
   selectedBlockId: number = BlockTypes.GRASS; // ホットバー初期選択と同期
   mode: GameMode = 'walk';
+  private cameraY = 0; // カメラY位置（スムーズ補間用）
 
   /** 現在のレイキャスト結果（Game側でハイライト表示に使用） */
   currentHit: RaycastHit | null = null;
@@ -42,6 +43,8 @@ export class Player {
       .setTranslation(32, spawnY, 32)
       .lockRotations(); // 物理回転をロック
     this.body = physicsWorld.createRigidBody(bodyDesc);
+
+    this.cameraY = spawnY + PLAYER_HEIGHT / 2;
 
     const colliderDesc = RAPIER.ColliderDesc.capsule(PLAYER_HALF_HEIGHT, PLAYER_RADIUS)
       .setFriction(0);
@@ -103,7 +106,7 @@ export class Player {
     this.handleBlockInteraction();
   }
 
-  private updateWalk(_dt: number, forward: THREE.Vector3, right: THREE.Vector3): void {
+  private updateWalk(dt: number, forward: THREE.Vector3, right: THREE.Vector3): void {
     const move = new THREE.Vector3();
     if (this.input.isDown('KeyW')) move.add(forward);
     if (this.input.isDown('KeyS')) move.sub(forward);
@@ -122,9 +125,56 @@ export class Player {
       this.body.setLinvel({ x: vel.x, y: JUMP_IMPULSE, z: vel.z }, true);
     }
 
-    // カメラ位置を同期
+    // オートステップ: 移動中 & 地面付近の場合、隣接1ブロック段差を自動で登る
     const pos = this.body.translation();
-    this.camera.position.set(pos.x, pos.y + PLAYER_HEIGHT / 2, pos.z);
+    if (move.lengthSq() > 0 && Math.abs(vel.y) < 0.5) {
+      const bottomY = pos.y - PLAYER_HALF_HEIGHT - PLAYER_RADIUS;
+      const feetBlockY = Math.round(bottomY) - 1; // 足元のブロック Y
+      const playerBX = Math.floor(pos.x);
+      const playerBZ = Math.floor(pos.z);
+
+      // 移動方向に応じて隣接ブロックをチェック（前後左右）
+      const candidates: [number, number][] = [];
+      if (this.input.isDown('KeyW') || this.input.isDown('KeyS') ||
+          this.input.isDown('KeyA') || this.input.isDown('KeyD')) {
+        const dir = move.clone().normalize();
+        // 移動方向の隣接ブロック座標を計算
+        const targetX = Math.floor(pos.x + dir.x * 0.9);
+        const targetZ = Math.floor(pos.z + dir.z * 0.9);
+        if (targetX !== playerBX || targetZ !== playerBZ) {
+          candidates.push([targetX, targetZ]);
+        }
+        // 斜め移動対策: X方向とZ方向も個別にチェック
+        if (Math.abs(dir.x) > 0.1) {
+          const sideX = Math.floor(pos.x + Math.sign(dir.x) * 0.9);
+          if (sideX !== playerBX) candidates.push([sideX, playerBZ]);
+        }
+        if (Math.abs(dir.z) > 0.1) {
+          const sideZ = Math.floor(pos.z + Math.sign(dir.z) * 0.9);
+          if (sideZ !== playerBZ) candidates.push([playerBX, sideZ]);
+        }
+      }
+
+      for (const [cx, cz] of candidates) {
+        const blockAtStep = this.world.getBlock(cx, feetBlockY + 1, cz);
+        const blockAbove1 = this.world.getBlock(cx, feetBlockY + 2, cz);
+        const blockAbove2 = this.world.getBlock(cx, feetBlockY + 3, cz);
+        if (blockAtStep !== 0 && blockAbove1 === 0 && blockAbove2 === 0) {
+          const newY = feetBlockY + 2 + PLAYER_HALF_HEIGHT + PLAYER_RADIUS + 0.01;
+          this.body.setTranslation({ x: pos.x, y: newY, z: pos.z }, true);
+          this.body.setLinvel({ x: move.x, y: 0, z: move.z }, true);
+          break;
+        }
+      }
+    }
+
+    // カメラ位置を同期（Y はスムーズ補間）
+    const posAfter = this.body.translation();
+    const targetCamY = posAfter.y + PLAYER_HEIGHT / 2;
+    // lerpで滑らかに追従（段差を登る時のガクつきを防止）
+    const lerpSpeed = 15; // 大きいほど速く追従
+    this.cameraY += (targetCamY - this.cameraY) * Math.min(lerpSpeed * dt, 1);
+    this.camera.position.set(posAfter.x, this.cameraY, posAfter.z);
   }
 
   private updateBuild(dt: number, forward: THREE.Vector3, right: THREE.Vector3): void {

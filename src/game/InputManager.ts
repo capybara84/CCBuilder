@@ -16,6 +16,8 @@ export class InputManager {
 
   constructor(private canvas: HTMLCanvasElement) {
     window.addEventListener('keydown', (e) => {
+      // 修飾キー付きの場合はゲーム入力として登録しない
+      if (e.ctrlKey || e.metaKey) return;
       this.keys.add(e.code);
     });
     window.addEventListener('keyup', (e) => {

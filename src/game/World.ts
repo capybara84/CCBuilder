@@ -52,6 +52,50 @@ export class World {
     this.physicsWorld.createCollider(colliderDesc, body);
   }
 
+  /** チャンクデータをロード（ロード時に使用） */
+  loadChunkData(cx: number, cz: number, blocks: number[]): void {
+    if (cx < 0 || cx >= CHUNKS_X || cz < 0 || cz >= CHUNKS_Z) return;
+    const chunk = this.chunks[cz * CHUNKS_X + cx];
+    chunk.blocks.set(blocks);
+    chunk.rebuildMesh(this.group);
+  }
+
+  /** 全動的コライダーを再構築（ロード後に呼び出す） */
+  rebuildAllColliders(): void {
+    // 既存の動的コライダーを全削除
+    for (const entry of this.blockColliders.values()) {
+      this.physicsWorld.removeCollider(entry.collider, true);
+      this.physicsWorld.removeRigidBody(entry.body);
+    }
+    this.blockColliders.clear();
+
+    // 全チャンクを走査してAIR以外 & 地面(y=0)以外にコライダー追加
+    for (let cz = 0; cz < CHUNKS_Z; cz++) {
+      for (let cx = 0; cx < CHUNKS_X; cx++) {
+        const chunk = this.chunks[cz * CHUNKS_X + cx];
+        for (let y = 0; y < CHUNK_SIZE; y++) {
+          for (let z = 0; z < CHUNK_SIZE; z++) {
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+              const id = chunk.getBlock(x, y, z);
+              if (id === BlockTypes.AIR) continue;
+              const wx = cx * CHUNK_SIZE + x;
+              const wz = cz * CHUNK_SIZE + z;
+              // 地面(y=0)は固定コライダーがあるのでスキップ
+              if (y === 0) continue;
+              const key = this.blockKey(wx, y, wz);
+              const bodyDesc = RAPIER.RigidBodyDesc.fixed()
+                .setTranslation(wx + 0.5, y + 0.5, wz + 0.5);
+              const body = this.physicsWorld.createRigidBody(bodyDesc);
+              const colliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
+              const collider = this.physicsWorld.createCollider(colliderDesc, body);
+              this.blockColliders.set(key, { body, collider });
+            }
+          }
+        }
+      }
+    }
+  }
+
   // ワールド座標 → ブロック取得
   getBlock(wx: number, wy: number, wz: number): number {
     const cx = Math.floor(wx / CHUNK_SIZE);

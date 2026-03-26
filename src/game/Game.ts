@@ -4,6 +4,7 @@ import { World } from './World';
 import { Player } from './Player';
 import { InputManager } from './InputManager';
 import { HUD } from '../ui/HUD';
+import { MapSerializer } from '../io/MapSerializer';
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
@@ -76,6 +77,16 @@ export class Game {
       // 数字キー1-6でホットバー選択
       if (e.code >= 'Digit1' && e.code <= 'Digit6') {
         this.hud.hotbar.select(parseInt(e.code.charAt(5)) - 1);
+      }
+      // Ctrl+S: 保存
+      if (e.code === 'KeyS' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        MapSerializer.save(this.world);
+      }
+      // Ctrl+O: ロード
+      if (e.code === 'KeyO' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        MapSerializer.load(this.world);
       }
     });
 
