@@ -5,6 +5,7 @@ import { Player } from './Player';
 import { InputManager } from './InputManager';
 import { HUD } from '../ui/HUD';
 import { MapSerializer } from '../io/MapSerializer';
+import { Sky } from '../rendering/Sky';
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
@@ -15,6 +16,7 @@ export class Game {
   private hud: HUD;
   private clock = new THREE.Clock();
   private highlight: THREE.LineSegments; // ブロックハイライト
+  private sky: Sky;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -24,11 +26,16 @@ export class Game {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.setClearColor(0x87ceeb); // 空色
-
     // シーン
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.Fog(0x87ceeb, 50, 150);
+
+    // 空の演出
+    this.sky = new Sky();
+    this.scene.add(this.sky.group);
+
+    // フォグ（スカイドームの地平線色と合わせる）
+    this.scene.fog = new THREE.Fog(this.sky.fogColor, 50, 150);
+    this.renderer.setClearColor(this.sky.fogColor);
 
     // ライト
     const ambient = new THREE.AmbientLight(0xffffff, 0.6);
@@ -118,6 +125,9 @@ export class Game {
 
     // プレイヤー更新
     this.player.update(dt);
+
+    // 空の更新（カメラ追従・雲スクロール）
+    this.sky.update(this.player.camera, dt);
 
     // ブロックハイライト更新
     const hit = this.player.currentHit;
