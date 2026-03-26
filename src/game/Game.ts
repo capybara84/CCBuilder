@@ -13,6 +13,7 @@ export class Game {
   private input: InputManager;
   private hud: HUD;
   private clock = new THREE.Clock();
+  private highlight: THREE.LineSegments; // ブロックハイライト
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -43,7 +44,14 @@ export class Game {
     this.scene.add(this.world.group);
 
     // プレイヤー
-    this.player = new Player(physicsWorld, this.input);
+    this.player = new Player(physicsWorld, this.input, this.world);
+
+    // ブロックハイライト（ワイヤーフレーム）
+    const hlGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.01, 1.01, 1.01));
+    const hlMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+    this.highlight = new THREE.LineSegments(hlGeo, hlMat);
+    this.highlight.visible = false;
+    this.scene.add(this.highlight);
 
     // HUD
     this.hud = new HUD();
@@ -62,11 +70,27 @@ export class Game {
 
     const dt = Math.min(this.clock.getDelta(), 1 / 30); // 上限を設定
 
+    // 入力更新
+    this.input.update(dt);
+
     // 物理シミュレーション
     this.physicsWorld.step();
 
     // プレイヤー更新
     this.player.update(dt);
+
+    // ブロックハイライト更新
+    const hit = this.player.currentHit;
+    if (hit) {
+      this.highlight.visible = true;
+      this.highlight.position.set(
+        hit.blockPos.x + 0.5,
+        hit.blockPos.y + 0.5,
+        hit.blockPos.z + 0.5,
+      );
+    } else {
+      this.highlight.visible = false;
+    }
 
     // 入力デルタリセット
     this.input.resetDelta();

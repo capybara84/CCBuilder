@@ -102,6 +102,15 @@ export class Chunk {
     return mesh;
   }
 
+  /** メッシュを再構築（親グループへの追加は呼び出し側が管理） */
+  rebuildMesh(parent: THREE.Object3D): void {
+    if (this.mesh && this.mesh.parent) {
+      this.mesh.parent.remove(this.mesh);
+    }
+    const newMesh = this.buildMesh();
+    parent.add(newMesh);
+  }
+
   dispose(): void {
     if (this.mesh) {
       this.mesh.geometry.dispose();
