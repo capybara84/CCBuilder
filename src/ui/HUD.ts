@@ -4,24 +4,103 @@ import { PauseMenu } from './PauseMenu';
 import { Inventory } from './Inventory';
 import { GameMode } from '../game/Player';
 
+const BTN_STYLE = `
+  padding: 10px 18px;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: monospace;
+  font-weight: bold;
+  cursor: pointer;
+  outline: none;
+  background: rgba(0,0,0,0.45);
+  color: rgba(255,255,255,0.85);
+  transition: background 0.15s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+`;
+
 export class HUD {
   readonly modeButton: ModeButton;
   readonly hotbar: Hotbar;
   readonly pauseMenu: PauseMenu;
   readonly inventory: Inventory;
 
+  // タッチ用ボタン
+  readonly menuButton: HTMLButtonElement;
+  readonly jumpButton: HTMLButtonElement;
+  readonly inventoryButton: HTMLButtonElement;
+
+  private _onMenu: (() => void) | null = null;
+  private _onJump: (() => void) | null = null;
+  private _onInventory: (() => void) | null = null;
+
   constructor() {
     this.createCrosshair();
-    this.createSaveHint();
     this.modeButton = new ModeButton();
     this.hotbar = new Hotbar();
     this.pauseMenu = new PauseMenu();
     this.inventory = new Inventory();
+
+    // 左上: MENU ボタン
+    this.menuButton = this.createButton('MENU', {
+      position: 'fixed',
+      top: '16px',
+      left: '16px',
+      zIndex: '20',
+    });
+    this.menuButton.addEventListener('click', () => this._onMenu?.());
+
+    // 右下: JUMP ボタン
+    this.jumpButton = this.createButton('JUMP', {
+      position: 'fixed',
+      bottom: '90px',
+      right: '16px',
+      zIndex: '20',
+    });
+    this.jumpButton.addEventListener('mousedown', () => this._onJump?.());
+    this.jumpButton.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      this._onJump?.();
+    });
+
+    // JUMP の上: INVENTORY ボタン
+    this.inventoryButton = this.createButton('INVENTORY', {
+      position: 'fixed',
+      bottom: '145px',
+      right: '16px',
+      zIndex: '20',
+    });
+    this.inventoryButton.addEventListener('click', () => this._onInventory?.());
+
+    this.createHelpHint();
   }
 
   /** モード変更コールバックを設定 */
   onModeChange(cb: (mode: GameMode) => void): void {
     this.modeButton.onModeChange(cb);
+  }
+
+  onMenu(cb: () => void): void { this._onMenu = cb; }
+  onJump(cb: () => void): void { this._onJump = cb; }
+  onInventoryButton(cb: () => void): void { this._onInventory = cb; }
+
+  private createButton(label: string, posStyle: Record<string, string>): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    btn.style.cssText = BTN_STYLE;
+    for (const [key, val] of Object.entries(posStyle)) {
+      (btn.style as any)[key] = val;
+    }
+    btn.addEventListener('mouseenter', () => {
+      btn.style.background = 'rgba(60,80,120,0.7)';
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.background = 'rgba(0,0,0,0.45)';
+    });
+    document.body.appendChild(btn);
+    return btn;
   }
 
   private createCrosshair(): void {
@@ -54,22 +133,22 @@ export class HUD {
     document.body.appendChild(el);
   }
 
-  private createSaveHint(): void {
+  private createHelpHint(): void {
     const el = document.createElement('div');
     el.id = 'save-hint';
     el.style.cssText = `
       position: fixed;
       bottom: 16px;
       right: 16px;
-      color: rgba(255,255,255,0.5);
-      font-size: 12px;
+      color: rgba(255,255,255,0.4);
+      font-size: 11px;
       font-family: monospace;
       pointer-events: none;
       z-index: 10;
       text-align: right;
       line-height: 1.6;
     `;
-    el.innerHTML = 'Q: Menu | E: Inventory | F: Mode';
+    el.innerHTML = 'Q: Menu | E: Inventory | F: Mode | Space: Jump';
     document.body.appendChild(el);
   }
 }

@@ -23,6 +23,7 @@ export class Hotbar {
   private slotBlockIds: number[] = [...DEFAULT_SLOTS];
   private _selectedIndex = 0;
   private _onChange: ((blockId: number) => void) | null = null;
+  private _onSlotClick: ((index: number) => void) | null = null;
 
   constructor() {
     const container = document.createElement('div');
@@ -62,7 +63,7 @@ export class Hotbar {
 
       slot.appendChild(swatch);
       slot.appendChild(label);
-      slot.addEventListener('click', () => this.select(i));
+      slot.addEventListener('click', () => this._onSlotClick?.(i));
       container.appendChild(slot);
 
       this.slotElements.push(slot);
@@ -78,14 +79,25 @@ export class Hotbar {
     return this._selectedIndex;
   }
 
+  /** 選択されているかどうか */
+  get hasSelection(): boolean {
+    return this._selectedIndex >= 0;
+  }
+
   /** 選択ブロックの ID を返す */
   get selectedBlockId(): number {
+    if (this._selectedIndex < 0) return 0;
     return this.slotBlockIds[this._selectedIndex];
   }
 
   /** 選択変更時のコールバックを設定 */
   onChange(cb: (blockId: number) => void): void {
     this._onChange = cb;
+  }
+
+  /** スロットクリック時のコールバック */
+  onSlotClick(cb: (index: number) => void): void {
+    this._onSlotClick = cb;
   }
 
   /** スロットを選択 */
@@ -96,19 +108,36 @@ export class Hotbar {
     this._onChange?.(this.selectedBlockId);
   }
 
+  /** スロットをトグル選択（同じスロットなら非選択に） */
+  toggleSelect(index: number): void {
+    const len = SLOT_COUNT;
+    const normalized = ((index % len) + len) % len;
+    if (this._selectedIndex === normalized) {
+      this.deselect();
+    } else {
+      this.select(normalized);
+    }
+  }
+
+  /** 選択を解除 */
+  deselect(): void {
+    this._selectedIndex = -1;
+    this.updateHighlight();
+  }
+
   /** スロットにブロックを設定 */
   setSlot(index: number, blockId: number): void {
     if (index < 0 || index >= SLOT_COUNT) return;
     this.slotBlockIds[index] = blockId;
     this.refreshSlot(index);
-    // 選択中のスロットが変更された場合、コールバック発火
     if (index === this._selectedIndex) {
       this._onChange?.(this.selectedBlockId);
     }
   }
 
-  /** 選択中スロットにブロックを設定 */
+  /** 選択中スロットにブロックを設定（選択がなければ何もしない） */
   setSelectedSlot(blockId: number): void {
+    if (this._selectedIndex < 0) return;
     this.setSlot(this._selectedIndex, blockId);
   }
 
