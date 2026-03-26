@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { Chunk, CHUNK_SIZE } from '../voxel/Chunk';
 import { BlockTypes } from '../voxel/BlockTypes';
+import { generateTerrain } from '../voxel/WorldGen';
 
 // マップサイズ（ブロック単位）
 const MAP_W = 64;
@@ -23,33 +24,56 @@ export class World {
     return `${x},${y},${z}`;
   }
 
-  // フラット地形を生成
+  // Simplex Noise 地形を生成
   private generate(): void {
+    // チャンクを作成
     for (let cz = 0; cz < CHUNKS_Z; cz++) {
       for (let cx = 0; cx < CHUNKS_X; cx++) {
-        const chunk = new Chunk(cx, cz);
-
-        // y=0 に草ブロックを敷き詰める
-        for (let z = 0; z < CHUNK_SIZE; z++) {
-          for (let x = 0; x < CHUNK_SIZE; x++) {
-            chunk.setBlock(x, 0, z, BlockTypes.GRASS);
-          }
-        }
-
-        const mesh = chunk.buildMesh();
-        this.group.add(mesh);
-        this.chunks.push(chunk);
+        this.chunks.push(new Chunk(cx, cz));
       }
     }
 
-    // 地面コライダー（薄い箱）
-    const halfW = MAP_W / 2;
-    const halfD = MAP_D / 2;
-    const bodyDesc = RAPIER.RigidBodyDesc.fixed()
-      .setTranslation(halfW, 0.5, halfD); // y=0.5 → ブロック上面が y=1
-    const body = this.physicsWorld.createRigidBody(bodyDesc);
-    const colliderDesc = RAPIER.ColliderDesc.cuboid(halfW, 0.5, halfD);
-    this.physicsWorld.createCollider(colliderDesc, body);
+    // 地形生成
+    generateTerrain(this.chunks, CHUNKS_X, CHUNKS_Z);
+
+    // メッシュ構築
+    for (const chunk of this.chunks) {
+      const mesh = chunk.buildMesh();
+      this.group.add(mesh);
+    }
+
+    // 地形コライダーを構築（表面ブロックのみ）
+    this.rebuildTerrainColliders();
+  }
+
+  /** 地形の表面ブロックにコライダーを付与（初期生成用） */
+  private rebuildTerrainColliders(): void {
+    for (let cz = 0; cz < CHUNKS_Z; cz++) {
+      for (let cx = 0; cx < CHUNKS_X; cx++) {
+        const chunk = this.chunks[cz * CHUNKS_X + cx];
+        for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+          for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+            for (let y = CHUNK_SIZE - 1; y >= 0; y--) {
+              const id = chunk.getBlock(lx, y, lz);
+              if (id === BlockTypes.AIR) continue;
+              // 上が空気（または範囲外）なら表面ブロック → コライダー追加
+              const above = chunk.getBlock(lx, y + 1, lz);
+              if (above === BlockTypes.AIR || y === CHUNK_SIZE - 1) {
+                const wx = cx * CHUNK_SIZE + lx;
+                const wz = cz * CHUNK_SIZE + lz;
+                const key = this.blockKey(wx, y, wz);
+                const bodyDesc = RAPIER.RigidBodyDesc.fixed()
+                  .setTranslation(wx + 0.5, y + 0.5, wz + 0.5);
+                const body = this.physicsWorld.createRigidBody(bodyDesc);
+                const colliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
+                const collider = this.physicsWorld.createCollider(colliderDesc, body);
+                this.blockColliders.set(key, { body, collider });
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   /** チャンクデータをロード（ロード時に使用） */
