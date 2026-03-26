@@ -17,11 +17,13 @@ export class Inventory {
     this.container.style.cssText = `
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
+      background: none;
       display: none;
       justify-content: center;
-      align-items: center;
-      z-index: 100;
+      align-items: flex-start;
+      padding-top: 60px;
+      z-index: 50;
+      pointer-events: none;
     `;
 
     const panel = document.createElement('div');
@@ -30,6 +32,7 @@ export class Inventory {
       border: 2px solid rgba(255, 255, 255, 0.2);
       border-radius: 8px;
       padding: 24px;
+      pointer-events: auto;
     `;
 
     // タイトル

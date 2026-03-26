@@ -72,7 +72,7 @@ export class InputManager {
       }
     });
     document.addEventListener('mouseup', (e) => {
-      if (e.button === 0) {
+      if (e.button === 0 && this._mouseLeft) {
         this._mouseLeftJustReleased = true;
         this._mouseLeftReleaseDuration = this.mouseLeftDuration;
         this._mouseLeft = false;
