@@ -52,7 +52,6 @@ export class PauseMenu {
     // ボタン
     const buttons: [string, () => void][] = [
       ['Resume', () => this._onResume?.()],
-      ['Inventory', () => this._onInventory?.()],
       ['Save Map', () => this._onSave?.()],
       ['Load Map', () => this._onLoad?.()],
     ];

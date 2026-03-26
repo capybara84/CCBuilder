@@ -69,7 +69,7 @@ export class HUD {
       text-align: right;
       line-height: 1.6;
     `;
-    el.innerHTML = 'ESC: Menu | E: Inventory<br>Ctrl+S: Save | Ctrl+O: Load';
+    el.innerHTML = 'ESC: Menu | E: Inventory | F: Mode';
     document.body.appendChild(el);
   }
 }

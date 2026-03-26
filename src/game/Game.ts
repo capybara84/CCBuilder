@@ -142,16 +142,6 @@ export class Game {
     if (e.code >= 'Digit1' && e.code <= 'Digit6') {
       this.hud.hotbar.select(parseInt(e.code.charAt(5)) - 1);
     }
-    // Ctrl+S: 保存
-    if (e.code === 'KeyS' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      MapSerializer.save(this.world);
-    }
-    // Ctrl+O: ロード
-    if (e.code === 'KeyO' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      MapSerializer.load(this.world);
-    }
   }
 
   private pause(): void {
@@ -167,14 +157,18 @@ export class Game {
 
   private openInventory(): void {
     this.paused = true;
+    // Pointer Lock を解除してカーソルを表示
+    document.exitPointerLock();
     this.hud.inventory.show();
   }
 
   private closeInventory(): void {
     this.hud.inventory.hide();
-    // ESCメニューも閉じてゲーム再開
     this.paused = false;
     this.hud.pauseMenu.hide();
+    // Pointer Lock を再取得
+    const canvas = this.renderer.domElement;
+    canvas.requestPointerLock();
   }
 
   start(): void {
