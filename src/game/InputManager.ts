@@ -122,6 +122,12 @@ export class InputManager {
     return this.keys.has(code);
   }
 
+  /** WASD のいずれかが押されているか */
+  get isMoving(): boolean {
+    return this.keys.has('KeyW') || this.keys.has('KeyA') ||
+           this.keys.has('KeyS') || this.keys.has('KeyD');
+  }
+
   /** フレーム更新（dt秒） */
   update(dt: number): void {
     if (this._mouseLeft) {
