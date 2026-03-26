@@ -84,14 +84,46 @@ export class Game {
       }
     });
 
+    // UIボタンコールバック
+    this.hud.onMenu(() => {
+      if (this.paused) {
+        this.resume();
+      } else {
+        this.pause();
+      }
+    });
+    this.hud.onJump(() => {
+      this.player.triggerJump();
+    });
+    this.hud.onInventoryButton(() => {
+      if (this.hud.inventory.visible) {
+        this.closeInventoryNoLock();
+      } else {
+        if (this.hud.pauseMenu.visible) this.hud.pauseMenu.hide();
+        this.openInventory();
+      }
+    });
+
     // ホットバー選択変更 → Player に反映
     this.hud.hotbar.onChange((blockId) => {
       this.player.selectedBlockId = blockId;
     });
 
-    // インベントリ: ブロック選択 → ホットバーに配置
-    this.hud.inventory.onSelect((blockId) => {
-      this.hud.hotbar.setSelectedSlot(blockId);
+    // ホットバースロットクリック
+    this.hud.hotbar.onSlotClick((index) => {
+      if (this.hud.inventory.visible) {
+        // インベントリ表示中: トグル選択
+        this.hud.hotbar.toggleSelect(index);
+        this.trySwapInventoryToHotbar();
+      } else {
+        // 通常時: 選択
+        this.hud.hotbar.select(index);
+      }
+    });
+
+    // インベントリ: ブロック選択（トグル）→ 両方選択なら入れ替え
+    this.hud.inventory.onSelect(() => {
+      this.trySwapInventoryToHotbar();
     });
     this.hud.inventory.onClose(() => {
       this.closeInventory();
@@ -109,6 +141,13 @@ export class Game {
     this.hud.pauseMenu.onLoad(() => {
       MapSerializer.load(this.world);
       this.resume();
+    });
+
+    // キャンバスクリック: インベントリ表示中なら閉じてロック取得
+    canvas.addEventListener('click', () => {
+      if (this.hud.inventory.visible) {
+        this.closeInventory();
+      }
     });
 
     // キーボードショートカット
@@ -148,7 +187,7 @@ export class Game {
     // E キー: インベントリ
     if (e.code === 'KeyE') {
       if (this.hud.inventory.visible) {
-        this.closeInventory();
+        this.closeInventoryNoLock();
       } else {
         if (this.hud.pauseMenu.visible) this.hud.pauseMenu.hide();
         this.openInventory();
@@ -186,18 +225,37 @@ export class Game {
 
   private openInventory(): void {
     this.paused = true;
-    // Pointer Lock を解除してカーソルを表示
     document.exitPointerLock();
+    this.hud.hotbar.deselect();
     this.hud.inventory.show();
   }
 
+  /** インベントリとホットバーの両方が選択されていたら入れ替え */
+  private trySwapInventoryToHotbar(): void {
+    if (this.hud.hotbar.hasSelection && this.hud.inventory.hasSelection) {
+      this.hud.hotbar.setSelectedSlot(this.hud.inventory.selectedBlockId);
+      // 入れ替え後、両方の選択を解除
+      this.hud.hotbar.deselect();
+      this.hud.inventory.deselect();
+    }
+  }
+
+  /** インベントリを閉じて Pointer Lock を再取得 */
   private closeInventory(): void {
     this.hud.inventory.hide();
     this.paused = false;
     this.hud.pauseMenu.hide();
-    // Pointer Lock を再取得
+    if (!this.hud.hotbar.hasSelection) this.hud.hotbar.select(0);
     const canvas = this.renderer.domElement;
     canvas.requestPointerLock();
+  }
+
+  /** インベントリを閉じるが Pointer Lock はかけない */
+  private closeInventoryNoLock(): void {
+    this.hud.inventory.hide();
+    this.paused = false;
+    this.hud.pauseMenu.hide();
+    if (!this.hud.hotbar.hasSelection) this.hud.hotbar.select(0);
   }
 
   start(): void {

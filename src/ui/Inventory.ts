@@ -3,13 +3,17 @@ import { getAtlas } from '../voxel/Chunk';
 
 /**
  * インベントリ画面（全ブロック一覧）
- * クリックでホットバーの選択スロットにブロックを配置
+ * クリックでブロックを選択、ホットバーとの両方が選択されたときに入れ替え
  */
 export class Inventory {
   private container: HTMLDivElement;
   private _visible = false;
   private _onSelect: ((blockId: number) => void) | null = null;
   private _onClose: (() => void) | null = null;
+
+  private cells: HTMLDivElement[] = [];
+  private blockIds: number[] = [];
+  private _selectedBlockId = -1; // -1 = 未選択
 
   constructor() {
     this.container = document.createElement('div');
@@ -50,7 +54,7 @@ export class Inventory {
 
     // ヒント
     const hint = document.createElement('div');
-    hint.textContent = 'Click a block to place it in the hotbar';
+    hint.textContent = 'Select a block, then click a hotbar slot';
     hint.style.cssText = `
       color: #aaa;
       font-size: 12px;
@@ -71,6 +75,8 @@ export class Inventory {
     for (const block of allBlocks) {
       const cell = this.createBlockCell(block);
       grid.appendChild(cell);
+      this.cells.push(cell);
+      this.blockIds.push(block.id);
     }
 
     panel.appendChild(grid);
@@ -98,26 +104,7 @@ export class Inventory {
 
   private createBlockCell(block: BlockDef): HTMLDivElement {
     const cell = document.createElement('div');
-    cell.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 8px;
-      border-radius: 4px;
-      cursor: pointer;
-      background: rgba(60, 60, 80, 0.6);
-      border: 2px solid transparent;
-      transition: border-color 0.1s, background 0.1s;
-    `;
-
-    cell.addEventListener('mouseenter', () => {
-      cell.style.borderColor = 'rgba(255, 255, 255, 0.6)';
-      cell.style.background = 'rgba(80, 100, 140, 0.7)';
-    });
-    cell.addEventListener('mouseleave', () => {
-      cell.style.borderColor = 'transparent';
-      cell.style.background = 'rgba(60, 60, 80, 0.6)';
-    });
+    cell.style.cssText = this.cellStyle(false);
 
     // テクスチャプレビュー
     const swatch = document.createElement('canvas');
@@ -152,18 +139,65 @@ export class Inventory {
     cell.appendChild(swatch);
     cell.appendChild(label);
     cell.addEventListener('click', () => {
-      this._onSelect?.(block.id);
+      this.toggleSelect(block.id);
     });
 
     return cell;
+  }
+
+  /** 選択をトグル */
+  private toggleSelect(blockId: number): void {
+    if (this._selectedBlockId === blockId) {
+      this._selectedBlockId = -1;
+    } else {
+      this._selectedBlockId = blockId;
+    }
+    this.updateHighlight();
+    this._onSelect?.(this._selectedBlockId);
+  }
+
+  private updateHighlight(): void {
+    for (let i = 0; i < this.cells.length; i++) {
+      const active = this.blockIds[i] === this._selectedBlockId;
+      this.cells[i].style.cssText = this.cellStyle(active);
+    }
+  }
+
+  private cellStyle(active: boolean): string {
+    return `
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      background: ${active ? 'rgba(80, 120, 180, 0.7)' : 'rgba(60, 60, 80, 0.6)'};
+      border: 2px solid ${active ? 'white' : 'transparent'};
+      transition: border-color 0.1s, background 0.1s;
+    `;
   }
 
   get visible(): boolean {
     return this._visible;
   }
 
+  get selectedBlockId(): number {
+    return this._selectedBlockId;
+  }
+
+  get hasSelection(): boolean {
+    return this._selectedBlockId >= 0;
+  }
+
+  /** 選択を解除 */
+  deselect(): void {
+    this._selectedBlockId = -1;
+    this.updateHighlight();
+  }
+
   show(): void {
     this._visible = true;
+    this.deselect();
     this.container.style.display = 'flex';
   }
 

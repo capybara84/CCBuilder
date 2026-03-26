@@ -255,6 +255,16 @@ export class Player {
     }
   }
 
+  /** UIボタンからジャンプをトリガー */
+  triggerJump(): void {
+    if (this.mode === 'walk') {
+      const vel = this.body.linvel();
+      if (Math.abs(vel.y) < 0.1) {
+        this.body.setLinvel({ x: vel.x, y: JUMP_IMPULSE, z: vel.z }, true);
+      }
+    }
+  }
+
   onResize(): void {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
