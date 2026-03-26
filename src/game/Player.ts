@@ -1,23 +1,33 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { InputManager } from './InputManager';
+import { World } from './World';
+import { voxelRaycast, RaycastHit } from './Raycast';
+import { BlockTypes } from '../voxel/BlockTypes';
 
 const MOVE_SPEED = 5;
 const JUMP_IMPULSE = 5;
 const MOUSE_SENSITIVITY = 0.002;
-const PLAYER_HEIGHT = 1.6; // カプセル全高 ≈ 1.8（半径0.3 + 半高さ0.6 + 半径0.3）
+const PLAYER_HEIGHT = 1.6;
 const PLAYER_RADIUS = 0.3;
 const PLAYER_HALF_HEIGHT = 0.6;
+const RAYCAST_DIST = 8;
+const DESTROY_HOLD_TIME = 0.5; // 長押し破壊の閾値（秒）
 
 export class Player {
   readonly camera: THREE.PerspectiveCamera;
   private body: RAPIER.RigidBody;
-  private yaw = 0;   // 水平回転
-  private pitch = 0;  // 垂直回転
+  private yaw = 0;
+  private pitch = 0;
+  selectedBlockId = BlockTypes.DIRT; // 設置するブロック（仮）
+
+  /** 現在のレイキャスト結果（Game側でハイライト表示に使用） */
+  currentHit: RaycastHit | null = null;
 
   constructor(
     physicsWorld: RAPIER.World,
     private input: InputManager,
+    private world: World,
   ) {
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
 
@@ -79,6 +89,44 @@ export class Player {
     // カメラ回転
     const euler = new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ');
     this.camera.quaternion.setFromEuler(euler);
+
+    // レイキャスト
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    this.currentHit = voxelRaycast(
+      this.camera.position, dir, RAYCAST_DIST,
+      (x, y, z) => this.world.getBlock(x, y, z),
+    );
+
+    // ブロック操作
+    if (this.input.locked && this.currentHit) {
+      const hit = this.currentHit;
+
+      // 左クリック → 設置
+      if (this.input.mouseLeftJustPressed) {
+        const placePos = hit.blockPos.clone().add(hit.normal);
+        // 自分の位置と重ならないかチェック（プレイヤーは2ブロック分の高さ）
+        const px = Math.floor(pos.x);
+        const py = Math.floor(pos.y);
+        const pz = Math.floor(pos.z);
+        const ppx = Math.floor(placePos.x);
+        const ppy = Math.floor(placePos.y);
+        const ppz = Math.floor(placePos.z);
+        const overlaps = ppx === px && ppz === pz && (ppy === py || ppy === py + 1);
+        if (!overlaps && placePos.y >= 0) {
+          this.world.setBlock(placePos.x, placePos.y, placePos.z, this.selectedBlockId);
+        }
+      }
+
+      // 左長押し → 破壊
+      if (this.input.mouseLeft && this.input.mouseLeftDuration >= DESTROY_HOLD_TIME && !this.input.mouseLeftFired) {
+        const blockId = this.world.getBlock(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z);
+        const def = BlockTypes.get(blockId);
+        if (def && def.breakable) {
+          this.world.setBlock(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z, BlockTypes.AIR);
+        }
+        this.input.mouseLeftFired = true; // 1回だけ発火
+      }
+    }
   }
 
   onResize(): void {

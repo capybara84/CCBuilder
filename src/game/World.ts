@@ -58,4 +58,30 @@ export class World {
       wz - cz * CHUNK_SIZE,
     );
   }
+
+  // ワールド座標 → ブロック設置・変更
+  setBlock(wx: number, wy: number, wz: number, id: number): void {
+    const cx = Math.floor(wx / CHUNK_SIZE);
+    const cz = Math.floor(wz / CHUNK_SIZE);
+    if (cx < 0 || cx >= CHUNKS_X || cz < 0 || cz >= CHUNKS_Z) return;
+    const chunk = this.chunks[cz * CHUNKS_X + cx];
+    const lx = wx - cx * CHUNK_SIZE;
+    const lz = wz - cz * CHUNK_SIZE;
+    chunk.setBlock(lx, wy, lz, id);
+    chunk.rebuildMesh(this.group);
+
+    // 境界ブロックの場合は隣接チャンクも再構築
+    if (lx === 0 && cx > 0) {
+      this.chunks[cz * CHUNKS_X + (cx - 1)].rebuildMesh(this.group);
+    }
+    if (lx === CHUNK_SIZE - 1 && cx < CHUNKS_X - 1) {
+      this.chunks[cz * CHUNKS_X + (cx + 1)].rebuildMesh(this.group);
+    }
+    if (lz === 0 && cz > 0) {
+      this.chunks[(cz - 1) * CHUNKS_X + cx].rebuildMesh(this.group);
+    }
+    if (lz === CHUNK_SIZE - 1 && cz < CHUNKS_Z - 1) {
+      this.chunks[(cz + 1) * CHUNKS_X + cx].rebuildMesh(this.group);
+    }
+  }
 }
