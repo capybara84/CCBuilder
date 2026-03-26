@@ -119,11 +119,23 @@ export class Game {
   }
 
   private onKeyDown(e: KeyboardEvent): void {
-    // ESC キー: メニュー/インベントリの切替
+    // ESC キー: インベントリ/メニューを閉じる
     if (e.code === 'Escape') {
       if (this.hud.inventory.visible) {
         this.closeInventory();
         return;
+      }
+      if (this.paused) {
+        this.resume();
+        return;
+      }
+      return;
+    }
+
+    // Q キー: メニュー
+    if (e.code === 'KeyQ') {
+      if (this.hud.inventory.visible) {
+        this.closeInventory();
       }
       if (this.paused) {
         this.resume();
@@ -160,6 +172,7 @@ export class Game {
 
   private pause(): void {
     this.paused = true;
+    document.exitPointerLock();
     this.hud.pauseMenu.show();
   }
 
@@ -167,6 +180,8 @@ export class Game {
     this.paused = false;
     this.hud.pauseMenu.hide();
     this.hud.inventory.hide();
+    const canvas = this.renderer.domElement;
+    canvas.requestPointerLock();
   }
 
   private openInventory(): void {
