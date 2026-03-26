@@ -21,9 +21,12 @@ export class Hotbar {
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 4px;
+      gap: 2px;
       z-index: 20;
       pointer-events: auto;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 90vw;
     `;
 
     this.blocks.forEach((block, i) => {
@@ -106,12 +109,12 @@ export class Hotbar {
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 6px;
-      border-radius: 4px;
+      padding: 4px;
+      border-radius: 3px;
       cursor: pointer;
       background: ${active ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.5)'};
       border: 2px solid ${active ? 'white' : 'rgba(255,255,255,0.15)'};
-      min-width: 44px;
+      min-width: 36px;
       transition: border-color 0.1s, background 0.1s;
     `;
   }
