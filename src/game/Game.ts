@@ -81,9 +81,13 @@ export class Game {
         this.player.toggleMode();
         this.hud.modeButton.setActive(this.player.mode);
       }
-      // 数字キー1-6でホットバー選択
-      if (e.code >= 'Digit1' && e.code <= 'Digit6') {
+      // 数字キー1-9でホットバー選択
+      if (e.code >= 'Digit1' && e.code <= 'Digit9') {
         this.hud.hotbar.select(parseInt(e.code.charAt(5)) - 1);
+      }
+      // 0キーで10番目
+      if (e.code === 'Digit0') {
+        this.hud.hotbar.select(9);
       }
       // Ctrl+S: 保存
       if (e.code === 'KeyS' && (e.ctrlKey || e.metaKey)) {

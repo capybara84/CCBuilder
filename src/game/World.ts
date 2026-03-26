@@ -40,6 +40,9 @@ export class World {
     for (const chunk of this.chunks) {
       const mesh = chunk.buildMesh();
       this.group.add(mesh);
+      if (chunk.transparentMesh) {
+        this.group.add(chunk.transparentMesh);
+      }
     }
 
     // 地形コライダーを構築（表面ブロックのみ）

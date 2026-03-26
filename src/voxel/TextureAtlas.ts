@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 const TEX_SIZE = 16; // 各テクスチャのピクセルサイズ
-const ATLAS_COLS = 6; // アトラスの列数
+const ATLAS_COLS = 18; // アトラスの列数（ブロック数）
 const ATLAS_ROWS = 3; // 行数（top, side, bottom）
 const ATLAS_W = TEX_SIZE * ATLAS_COLS;
 const ATLAS_H = TEX_SIZE * ATLAS_ROWS;
@@ -22,6 +22,8 @@ function seededRandom(seed: number): () => number {
   };
 }
 
+type TexGen = (ctx: CanvasRenderingContext2D, ox: number, oy: number) => void;
+
 /** テクスチャアトラスを生成 */
 export class TextureAtlas {
   readonly texture: THREE.CanvasTexture;
@@ -38,16 +40,26 @@ export class TextureAtlas {
     this.canvas.height = ATLAS_H;
     const ctx = this.canvas.getContext('2d')!;
 
-    // ブロック定義: [id, name, generator]
-    const generators: [number, (ctx: CanvasRenderingContext2D, x: number, y: number) => void,
-                                (ctx: CanvasRenderingContext2D, x: number, y: number) => void,
-                                (ctx: CanvasRenderingContext2D, x: number, y: number) => void][] = [
-      [1, this.genGrassTop, this.genGrassSide, this.genDirt],       // Grass
-      [2, this.genDirt, this.genDirt, this.genDirt],                 // Dirt
-      [3, this.genStone, this.genStone, this.genStone],              // Stone
-      [4, this.genWoodTop, this.genWoodSide, this.genWoodTop],       // Wood
-      [5, this.genSand, this.genSand, this.genSand],                 // Sand
-      [6, this.genWater, this.genWater, this.genWater],              // Water
+    // ブロック定義: [id, topGen, sideGen, bottomGen]
+    const generators: [number, TexGen, TexGen, TexGen][] = [
+      [1,  this.genGrassTop, this.genGrassSide, this.genDirt],       // Grass
+      [2,  this.genDirt, this.genDirt, this.genDirt],                 // Dirt
+      [3,  this.genStone, this.genStone, this.genStone],              // Stone
+      [4,  this.genWoodTop, this.genWoodSide, this.genWoodTop],       // Wood
+      [5,  this.genSand, this.genSand, this.genSand],                 // Sand
+      [6,  this.genWater, this.genWater, this.genWater],              // Water
+      [7,  this.genOakLogTop, this.genOakLogSide, this.genOakLogTop], // Oak Log
+      [8,  this.genLeaves, this.genLeaves, this.genLeaves],           // Leaves
+      [9,  this.genFlowerTop, this.genFlowerSide, this.genDirt],      // Flower
+      [10, this.genSnow, this.genSnow, this.genSnow],                 // Snow
+      [11, this.genIce, this.genIce, this.genIce],                    // Ice
+      [12, this.genBrick, this.genBrick, this.genBrick],               // Brick
+      [13, this.genStoneBrick, this.genStoneBrick, this.genStoneBrick],// Stone Brick
+      [14, this.genGlass, this.genGlass, this.genGlass],               // Glass
+      [15, this.genPlanks, this.genPlanks, this.genPlanks],            // Planks
+      [16, this.genWool(0xf0f0f0, 1601), this.genWool(0xf0f0f0, 1602), this.genWool(0xf0f0f0, 1603)], // Wool White
+      [17, this.genWool(0xcc3333, 1701), this.genWool(0xcc3333, 1702), this.genWool(0xcc3333, 1703)], // Wool Red
+      [18, this.genWool(0x3355cc, 1801), this.genWool(0x3355cc, 1802), this.genWool(0x3355cc, 1803)], // Wool Blue
     ];
 
     generators.forEach(([id, topGen, sideGen, bottomGen], col) => {
@@ -78,7 +90,7 @@ export class TextureAtlas {
     return [u0, v0, u1, v1];
   }
 
-  // === テクスチャ生成関数 ===
+  // === 基本テクスチャ生成関数 ===
 
   private genGrassTop(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
     const rng = seededRandom(101);
@@ -97,11 +109,9 @@ export class TextureAtlas {
     for (let y = 0; y < TEX_SIZE; y++) {
       for (let x = 0; x < TEX_SIZE; x++) {
         if (y < 4) {
-          // 上部: 緑の草帯
           const g = 90 + Math.floor(rng() * 60);
           ctx.fillStyle = `rgb(${30 + Math.floor(rng() * 20)},${g},${20 + Math.floor(rng() * 15)})`;
         } else {
-          // 下部: 茶色の土
           const base = 100 + Math.floor(rng() * 40);
           ctx.fillStyle = `rgb(${base},${Math.floor(base * 0.6)},${Math.floor(base * 0.3)})`;
         }
@@ -123,7 +133,6 @@ export class TextureAtlas {
 
   private genStone(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
     const rng = seededRandom(301);
-    // ベースのグレー
     for (let y = 0; y < TEX_SIZE; y++) {
       for (let x = 0; x < TEX_SIZE; x++) {
         const v = 110 + Math.floor(rng() * 40);
@@ -131,7 +140,6 @@ export class TextureAtlas {
         ctx.fillRect(ox + x, oy + y, 1, 1);
       }
     }
-    // ひび割れライン
     ctx.fillStyle = 'rgba(0,0,0,0.2)';
     for (let i = 0; i < 6; i++) {
       const sx = Math.floor(rng() * TEX_SIZE);
@@ -145,7 +153,6 @@ export class TextureAtlas {
 
   private genWoodTop(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
     const rng = seededRandom(401);
-    // 年輪パターン
     const cx = TEX_SIZE / 2, cy = TEX_SIZE / 2;
     for (let y = 0; y < TEX_SIZE; y++) {
       for (let x = 0; x < TEX_SIZE; x++) {
@@ -162,7 +169,6 @@ export class TextureAtlas {
     const rng = seededRandom(402);
     for (let y = 0; y < TEX_SIZE; y++) {
       for (let x = 0; x < TEX_SIZE; x++) {
-        // 縦の木目ライン
         const stripe = Math.sin(x * 1.5 + rng() * 0.3) * 0.5 + 0.5;
         const base = 120 + Math.floor(stripe * 40) + Math.floor(rng() * 15);
         ctx.fillStyle = `rgb(${base},${Math.floor(base * 0.55)},${Math.floor(base * 0.28)})`;
@@ -192,5 +198,258 @@ export class TextureAtlas {
         ctx.fillRect(ox + x, oy + y, 1, 1);
       }
     }
+  }
+
+  // === 新ブロック テクスチャ生成 ===
+
+  /** 丸太の上面（年輪） */
+  private genOakLogTop(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(701);
+    const cx = TEX_SIZE / 2, cy = TEX_SIZE / 2;
+    for (let y = 0; y < TEX_SIZE; y++) {
+      for (let x = 0; x < TEX_SIZE; x++) {
+        const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+        const ring = Math.sin(dist * 2.5) * 0.5 + 0.5;
+        const base = 90 + Math.floor(ring * 50) + Math.floor(rng() * 10);
+        ctx.fillStyle = `rgb(${base},${Math.floor(base * 0.55)},${Math.floor(base * 0.25)})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+  }
+
+  /** 丸太の側面（樹皮） */
+  private genOakLogSide(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(702);
+    for (let y = 0; y < TEX_SIZE; y++) {
+      for (let x = 0; x < TEX_SIZE; x++) {
+        // 縦方向の樹皮パターン
+        const bark = Math.sin(x * 2.0 + rng() * 0.5) * 0.3 + 0.7;
+        const base = 60 + Math.floor(bark * 40) + Math.floor(rng() * 15);
+        ctx.fillStyle = `rgb(${base},${Math.floor(base * 0.6)},${Math.floor(base * 0.3)})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+    // 横方向のひび
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    for (let i = 0; i < 4; i++) {
+      const sy = Math.floor(rng() * TEX_SIZE);
+      for (let x = 0; x < TEX_SIZE; x++) {
+        if (rng() > 0.3) ctx.fillRect(ox + x, oy + sy, 1, 1);
+      }
+    }
+  }
+
+  /** 葉ブロック */
+  private genLeaves(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(801);
+    for (let y = 0; y < TEX_SIZE; y++) {
+      for (let x = 0; x < TEX_SIZE; x++) {
+        const g = 60 + Math.floor(rng() * 80);
+        const r = 10 + Math.floor(rng() * 30);
+        const b = 10 + Math.floor(rng() * 20);
+        const a = rng() > 0.15 ? 1.0 : 0.0; // 隙間
+        ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+  }
+
+  /** 花ブロック（上面: 花びら） */
+  private genFlowerTop(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(901);
+    // ベース: 緑
+    for (let y = 0; y < TEX_SIZE; y++) {
+      for (let x = 0; x < TEX_SIZE; x++) {
+        const g = 90 + Math.floor(rng() * 50);
+        ctx.fillStyle = `rgb(${30 + Math.floor(rng() * 20)},${g},${20 + Math.floor(rng() * 15)})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+    // 花びらドット
+    const colors = ['rgb(220,50,50)', 'rgb(240,200,40)', 'rgb(240,120,180)', 'rgb(255,255,100)'];
+    for (let i = 0; i < 5; i++) {
+      const fx = 2 + Math.floor(rng() * 12);
+      const fy = 2 + Math.floor(rng() * 12);
+      ctx.fillStyle = colors[Math.floor(rng() * colors.length)];
+      ctx.fillRect(ox + fx, oy + fy, 2, 2);
+      ctx.fillRect(ox + fx - 1, oy + fy, 1, 2);
+      ctx.fillRect(ox + fx + 2, oy + fy, 1, 2);
+      ctx.fillRect(ox + fx, oy + fy - 1, 2, 1);
+      ctx.fillRect(ox + fx, oy + fy + 2, 2, 1);
+    }
+  }
+
+  /** 花ブロック（側面: 茎と花） */
+  private genFlowerSide(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(902);
+    // ベース: 緑（草地）
+    for (let y = 0; y < TEX_SIZE; y++) {
+      for (let x = 0; x < TEX_SIZE; x++) {
+        const g = 90 + Math.floor(rng() * 50);
+        ctx.fillStyle = `rgb(${30 + Math.floor(rng() * 20)},${g},${20 + Math.floor(rng() * 15)})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+    // 茎
+    ctx.fillStyle = 'rgb(40,120,30)';
+    ctx.fillRect(ox + 5, oy + 4, 1, 10);
+    ctx.fillRect(ox + 10, oy + 6, 1, 8);
+    // 花
+    ctx.fillStyle = 'rgb(220,50,50)';
+    ctx.fillRect(ox + 4, oy + 2, 3, 3);
+    ctx.fillStyle = 'rgb(240,200,40)';
+    ctx.fillRect(ox + 9, oy + 4, 3, 3);
+  }
+
+  /** 雪ブロック */
+  private genSnow(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(1001);
+    for (let y = 0; y < TEX_SIZE; y++) {
+      for (let x = 0; x < TEX_SIZE; x++) {
+        const v = 230 + Math.floor(rng() * 25);
+        ctx.fillStyle = `rgb(${v},${v},${Math.min(255, v + 5)})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+  }
+
+  /** 氷ブロック */
+  private genIce(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(1101);
+    for (let y = 0; y < TEX_SIZE; y++) {
+      for (let x = 0; x < TEX_SIZE; x++) {
+        const wave = Math.sin(x * 0.6 + y * 0.4) * 15;
+        const v = 180 + Math.floor(wave) + Math.floor(rng() * 20);
+        ctx.fillStyle = `rgb(${v - 30},${v - 10},${Math.min(255, v + 10)})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+    // ひび割れ
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    for (let i = 0; i < 3; i++) {
+      let lx = Math.floor(rng() * TEX_SIZE);
+      let ly = Math.floor(rng() * TEX_SIZE);
+      for (let j = 0; j < 5; j++) {
+        ctx.fillRect(ox + lx, oy + ly, 1, 1);
+        lx += Math.floor(rng() * 3) - 1;
+        ly += Math.floor(rng() * 3) - 1;
+        lx = Math.max(0, Math.min(TEX_SIZE - 1, lx));
+        ly = Math.max(0, Math.min(TEX_SIZE - 1, ly));
+      }
+    }
+  }
+
+  /** レンガ */
+  private genBrick(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(1201);
+    // ベース: レンガ色
+    for (let y = 0; y < TEX_SIZE; y++) {
+      for (let x = 0; x < TEX_SIZE; x++) {
+        const base = 150 + Math.floor(rng() * 40);
+        ctx.fillStyle = `rgb(${base},${Math.floor(base * 0.45)},${Math.floor(base * 0.3)})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+    // 目地線（横4段、各段でオフセット）
+    ctx.fillStyle = 'rgb(180,170,150)';
+    for (let row = 0; row < 4; row++) {
+      const gy = row * 4;
+      for (let x = 0; x < TEX_SIZE; x++) {
+        ctx.fillRect(ox + x, oy + gy, 1, 1);
+      }
+      // 縦目地（段ごとにオフセット）
+      const offset = (row % 2) * 4;
+      for (let col = 0; col < 2; col++) {
+        const gx = offset + col * 8;
+        for (let y = gy; y < gy + 4 && y < TEX_SIZE; y++) {
+          ctx.fillRect(ox + gx, oy + y, 1, 1);
+        }
+      }
+    }
+  }
+
+  /** 石レンガ */
+  private genStoneBrick(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(1301);
+    // ベース: グレー
+    for (let y = 0; y < TEX_SIZE; y++) {
+      for (let x = 0; x < TEX_SIZE; x++) {
+        const v = 130 + Math.floor(rng() * 30);
+        ctx.fillStyle = `rgb(${v},${v},${v})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+    // 目地（横2段、各段でオフセット）
+    ctx.fillStyle = 'rgb(90,90,90)';
+    for (let row = 0; row < 2; row++) {
+      const gy = row * 8;
+      for (let x = 0; x < TEX_SIZE; x++) {
+        ctx.fillRect(ox + x, oy + gy, 1, 1);
+      }
+      const offset = (row % 2) * 4;
+      for (let col = 0; col < 2; col++) {
+        const gx = offset + col * 8;
+        for (let y = gy; y < gy + 8 && y < TEX_SIZE; y++) {
+          ctx.fillRect(ox + gx, oy + y, 1, 1);
+        }
+      }
+    }
+  }
+
+  /** ガラス */
+  private genGlass(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    // 半透明の水色ベース
+    ctx.fillStyle = 'rgba(200, 230, 240, 0.25)';
+    ctx.fillRect(ox, oy, TEX_SIZE, TEX_SIZE);
+    // 枠線
+    ctx.fillStyle = 'rgba(180, 210, 230, 0.6)';
+    for (let i = 0; i < TEX_SIZE; i++) {
+      ctx.fillRect(ox + i, oy, 1, 1);           // 上
+      ctx.fillRect(ox + i, oy + TEX_SIZE - 1, 1, 1); // 下
+      ctx.fillRect(ox, oy + i, 1, 1);            // 左
+      ctx.fillRect(ox + TEX_SIZE - 1, oy + i, 1, 1); // 右
+    }
+    // ハイライト
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillRect(ox + 2, oy + 2, 3, 1);
+    ctx.fillRect(ox + 2, oy + 3, 1, 2);
+  }
+
+  /** 板材 */
+  private genPlanks(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(1501);
+    for (let y = 0; y < TEX_SIZE; y++) {
+      for (let x = 0; x < TEX_SIZE; x++) {
+        // 板の境目（4ピクセルごと）
+        const plank = Math.floor(x / 4);
+        const plankSeed = plank * 17 + 1500;
+        const pRng = seededRandom(plankSeed + y);
+        const base = 160 + (plank * 13 % 30) + Math.floor(pRng() * 15);
+        // 板の境目ライン
+        if (x % 4 === 0) {
+          ctx.fillStyle = `rgb(${base - 30},${Math.floor((base - 30) * 0.55)},${Math.floor((base - 30) * 0.25)})`;
+        } else {
+          ctx.fillStyle = `rgb(${base},${Math.floor(base * 0.58)},${Math.floor(base * 0.28)})`;
+        }
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+  }
+
+  /** 羊毛（色を受け取ってクロージャを返す） */
+  private genWool(colorHex: number, seed: number): TexGen {
+    return (ctx: CanvasRenderingContext2D, ox: number, oy: number): void => {
+      const rng = seededRandom(seed);
+      const r = (colorHex >> 16) & 0xff;
+      const g = (colorHex >> 8) & 0xff;
+      const b = colorHex & 0xff;
+      for (let y = 0; y < TEX_SIZE; y++) {
+        for (let x = 0; x < TEX_SIZE; x++) {
+          const noise = Math.floor(rng() * 20) - 10;
+          ctx.fillStyle = `rgb(${Math.max(0, Math.min(255, r + noise))},${Math.max(0, Math.min(255, g + noise))},${Math.max(0, Math.min(255, b + noise))})`;
+          ctx.fillRect(ox + x, oy + y, 1, 1);
+        }
+      }
+    };
   }
 }
