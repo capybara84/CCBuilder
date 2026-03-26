@@ -18,6 +18,9 @@ const DESTROY_HOLD_TIME = 0.5; // 長押し破壊の閾値（秒）
 
 export type GameMode = 'walk' | 'build';
 
+/** ブロック操作時のコールバック型 */
+export type BlockEffectCallback = (wx: number, wy: number, wz: number, blockId: number) => void;
+
 export class Player {
   readonly camera: THREE.PerspectiveCamera;
   private body: RAPIER.RigidBody;
@@ -25,6 +28,9 @@ export class Player {
   private yaw = 0;
   private pitch = 0;
   selectedBlockId: number = BlockTypes.GRASS; // ホットバー初期選択と同期
+  onBlockPlace: BlockEffectCallback | null = null;
+  onBlockBreak: BlockEffectCallback | null = null;
+  onBlockBreaking: BlockEffectCallback | null = null; // 長押し中に継続的に呼ばれる
   mode: GameMode = 'walk';
   private cameraY = 0; // カメラY位置（スムーズ補間用）
 
@@ -227,12 +233,22 @@ export class Player {
       }
     }
 
-    // 左長押し → 破壊
+    // 左長押し中 → 破壊予兆パーティクル
     const holdDuration = Math.max(this.input.mouseLeftDuration, this.input.cKeyDuration);
+    if (this.input.mouseLeft && holdDuration >= DESTROY_HOLD_TIME * 0.5 && !this.input.mouseLeftFired) {
+      const breakingId = this.world.getBlock(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z);
+      const breakingDef = BlockTypes.get(breakingId);
+      if (breakingDef && breakingDef.breakable) {
+        this.onBlockBreaking?.(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z, breakingId);
+      }
+    }
+
+    // 左長押し → 破壊
     if (this.input.mouseLeft && holdDuration >= DESTROY_HOLD_TIME && !this.input.mouseLeftFired) {
       const blockId = this.world.getBlock(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z);
       const def = BlockTypes.get(blockId);
       if (def && def.breakable) {
+        this.onBlockBreak?.(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z, blockId);
         this.world.setBlock(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z, BlockTypes.AIR);
       }
       this.input.mouseLeftFired = true;
