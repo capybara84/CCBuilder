@@ -1,16 +1,22 @@
 import { ModeButton } from './ModeButton';
 import { Hotbar } from './Hotbar';
+import { PauseMenu } from './PauseMenu';
+import { Inventory } from './Inventory';
 import { GameMode } from '../game/Player';
 
 export class HUD {
   readonly modeButton: ModeButton;
   readonly hotbar: Hotbar;
+  readonly pauseMenu: PauseMenu;
+  readonly inventory: Inventory;
 
   constructor() {
     this.createCrosshair();
     this.createSaveHint();
     this.modeButton = new ModeButton();
     this.hotbar = new Hotbar();
+    this.pauseMenu = new PauseMenu();
+    this.inventory = new Inventory();
   }
 
   /** モード変更コールバックを設定 */
@@ -31,7 +37,6 @@ export class HUD {
       pointer-events: none;
       z-index: 10;
     `;
-    // 十字線
     const h = document.createElement('div');
     h.style.cssText = `
       position: absolute; top: 50%; left: 0; width: 100%; height: 2px;
@@ -64,7 +69,7 @@ export class HUD {
       text-align: right;
       line-height: 1.6;
     `;
-    el.innerHTML = 'Ctrl+S: Save<br>Ctrl+O: Load';
+    el.innerHTML = 'ESC: Menu | E: Inventory<br>Ctrl+S: Save | Ctrl+O: Load';
     document.body.appendChild(el);
   }
 }

@@ -1,18 +1,30 @@
 import { BlockTypes, BlockDef } from '../voxel/BlockTypes';
 import { getAtlas } from '../voxel/Chunk';
 
+const SLOT_COUNT = 6;
+
+// 初期スロット
+const DEFAULT_SLOTS = [
+  BlockTypes.GRASS,
+  BlockTypes.DIRT,
+  BlockTypes.STONE,
+  BlockTypes.WOOD,
+  BlockTypes.SAND,
+  BlockTypes.OAK_LOG,
+];
+
 /**
- * 画面下部中央のブロック選択ホットバー
+ * 画面下部中央のブロック選択ホットバー（6スロット固定）
  */
 export class Hotbar {
-  private slots: HTMLDivElement[] = [];
-  private blocks: BlockDef[];
+  private slotElements: HTMLDivElement[] = [];
+  private swatches: HTMLCanvasElement[] = [];
+  private labels: HTMLDivElement[] = [];
+  private slotBlockIds: number[] = [...DEFAULT_SLOTS];
   private _selectedIndex = 0;
   private _onChange: ((blockId: number) => void) | null = null;
 
   constructor() {
-    this.blocks = BlockTypes.all().slice(); // 全ブロック種類
-
     const container = document.createElement('div');
     container.id = 'hotbar';
     container.style.cssText = `
@@ -21,43 +33,26 @@ export class Hotbar {
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 2px;
+      gap: 4px;
       z-index: 20;
       pointer-events: auto;
-      flex-wrap: wrap;
-      justify-content: center;
-      max-width: 90vw;
     `;
 
-    this.blocks.forEach((block, i) => {
+    for (let i = 0; i < SLOT_COUNT; i++) {
       const slot = document.createElement('div');
       slot.style.cssText = this.slotStyle(i === 0);
-      // テクスチャプレビュー
+
       const swatch = document.createElement('canvas');
-      swatch.width = 28;
-      swatch.height = 28;
+      swatch.width = 32;
+      swatch.height = 32;
       swatch.style.cssText = `
-        width: 28px; height: 28px;
+        width: 32px; height: 32px;
         border-radius: 2px;
         margin-bottom: 2px;
         image-rendering: pixelated;
       `;
-      // アトラスから切り出して描画
-      const atlas = getAtlas();
-      const blockUV = atlas.blockUVs.get(block.id);
-      if (blockUV) {
-        const [col, row] = blockUV.top; // 上面テクスチャをプレビュー
-        const swatchCtx = swatch.getContext('2d')!;
-        swatchCtx.imageSmoothingEnabled = false;
-        swatchCtx.drawImage(
-          atlas.canvas,
-          col * 16, row * 16, 16, 16,
-          0, 0, 28, 28,
-        );
-      }
-      // ブロック名
+
       const label = document.createElement('div');
-      label.textContent = block.name;
       label.style.cssText = `
         font-size: 9px;
         color: #ccc;
@@ -69,10 +64,14 @@ export class Hotbar {
       slot.appendChild(label);
       slot.addEventListener('click', () => this.select(i));
       container.appendChild(slot);
-      this.slots.push(slot);
-    });
+
+      this.slotElements.push(slot);
+      this.swatches.push(swatch);
+      this.labels.push(label);
+    }
 
     document.body.appendChild(container);
+    this.refreshAllSlots();
   }
 
   get selectedIndex(): number {
@@ -81,7 +80,7 @@ export class Hotbar {
 
   /** 選択ブロックの ID を返す */
   get selectedBlockId(): number {
-    return this.blocks[this._selectedIndex].id;
+    return this.slotBlockIds[this._selectedIndex];
   }
 
   /** 選択変更時のコールバックを設定 */
@@ -91,15 +90,53 @@ export class Hotbar {
 
   /** スロットを選択 */
   select(index: number): void {
-    // 範囲をループ
-    const len = this.blocks.length;
+    const len = SLOT_COUNT;
     this._selectedIndex = ((index % len) + len) % len;
     this.updateHighlight();
     this._onChange?.(this.selectedBlockId);
   }
 
+  /** スロットにブロックを設定 */
+  setSlot(index: number, blockId: number): void {
+    if (index < 0 || index >= SLOT_COUNT) return;
+    this.slotBlockIds[index] = blockId;
+    this.refreshSlot(index);
+    // 選択中のスロットが変更された場合、コールバック発火
+    if (index === this._selectedIndex) {
+      this._onChange?.(this.selectedBlockId);
+    }
+  }
+
+  /** 選択中スロットにブロックを設定 */
+  setSelectedSlot(blockId: number): void {
+    this.setSlot(this._selectedIndex, blockId);
+  }
+
+  private refreshSlot(index: number): void {
+    const blockId = this.slotBlockIds[index];
+    const block = BlockTypes.get(blockId);
+    const atlas = getAtlas();
+    const blockUV = atlas.blockUVs.get(blockId);
+
+    const ctx = this.swatches[index].getContext('2d')!;
+    ctx.clearRect(0, 0, 32, 32);
+    if (blockUV) {
+      const [col, row] = blockUV.top;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(atlas.canvas, col * 16, row * 16, 16, 16, 0, 0, 32, 32);
+    }
+
+    this.labels[index].textContent = block?.name ?? '';
+  }
+
+  private refreshAllSlots(): void {
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      this.refreshSlot(i);
+    }
+  }
+
   private updateHighlight(): void {
-    this.slots.forEach((slot, i) => {
+    this.slotElements.forEach((slot, i) => {
       slot.style.cssText = this.slotStyle(i === this._selectedIndex);
     });
   }
@@ -109,12 +146,12 @@ export class Hotbar {
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 4px;
-      border-radius: 3px;
+      padding: 6px;
+      border-radius: 4px;
       cursor: pointer;
       background: ${active ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.5)'};
       border: 2px solid ${active ? 'white' : 'rgba(255,255,255,0.15)'};
-      min-width: 36px;
+      min-width: 48px;
       transition: border-color 0.1s, background 0.1s;
     `;
   }
