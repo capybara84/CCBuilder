@@ -8,6 +8,7 @@ import { MapSerializer } from '../io/MapSerializer';
 import { Sky } from '../rendering/Sky';
 import { ParticleSystem } from '../rendering/ParticleSystem';
 import { updateWaterTime } from '../voxel/Chunk';
+import { HandView } from '../rendering/HandView';
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
@@ -20,6 +21,7 @@ export class Game {
   private highlight: THREE.LineSegments;
   private sky: Sky;
   private particles: ParticleSystem;
+  private handView: HandView;
   private paused = false;
   private elapsedTime = 0;
 
@@ -31,6 +33,7 @@ export class Game {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.autoClear = false; // 2パスレンダリング用
     // シーン
     this.scene = new THREE.Scene();
 
@@ -68,6 +71,9 @@ export class Game {
       this.particles.emitBreaking(wx, wy, wz, blockId);
     };
     this.player.onBlockPlace = null;
+
+    // 手・道具表示
+    this.handView = new HandView();
 
     // ブロックハイライト（ワイヤーフレーム）
     const hlGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.01, 1.01, 1.01));
@@ -212,6 +218,12 @@ export class Game {
       // プレイヤー更新
       this.player.update(dt);
 
+      // 手の状態更新
+      const isBreaking = this.input.mouseLeft &&
+        Math.max(this.input.mouseLeftDuration, this.input.cKeyDuration) > 0.1;
+      this.handView.setBreaking(isBreaking);
+      this.handView.setWalking(this.input.isMoving && !isBreaking);
+
       // ブロックハイライト更新
       const hit = this.player.currentHit;
       if (hit) {
@@ -241,15 +253,22 @@ export class Game {
     // 水面アニメーション
     updateWaterTime(this.elapsedTime);
 
+    // 手・道具更新
+    this.handView.update(dt);
+
     // 空の更新（一時停止中も雲は動かす）
     this.sky.update(this.player.camera, dt);
 
-    // 描画
+    // 2パスレンダリング
+    this.renderer.clear();
     this.renderer.render(this.scene, this.player.camera);
+    this.renderer.clearDepth();
+    this.renderer.render(this.handView.scene, this.handView.camera);
   };
 
   private onResize(): void {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.player.onResize();
+    this.handView.onResize();
   }
 }
