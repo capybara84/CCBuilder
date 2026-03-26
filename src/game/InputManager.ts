@@ -6,7 +6,8 @@ export class InputManager {
 
   // マウスボタン状態
   private _mouseLeft = false;
-  private _mouseLeftJustPressed = false;
+  private _mouseLeftJustReleased = false;
+  private _mouseLeftReleaseDuration = 0; // 離した時点での押下時間
   mouseLeftDuration = 0;
   private _mouseLeftFired = false; // 長押し発火済みフラグ
 
@@ -29,13 +30,14 @@ export class InputManager {
       if (!this._locked) return;
       if (e.button === 0) {
         this._mouseLeft = true;
-        this._mouseLeftJustPressed = true;
         this.mouseLeftDuration = 0;
         this._mouseLeftFired = false;
       }
     });
     document.addEventListener('mouseup', (e) => {
       if (e.button === 0) {
+        this._mouseLeftJustReleased = true;
+        this._mouseLeftReleaseDuration = this.mouseLeftDuration;
         this._mouseLeft = false;
         this.mouseLeftDuration = 0;
         this._mouseLeftFired = false;
@@ -62,8 +64,9 @@ export class InputManager {
     return this._mouseLeft;
   }
 
-  get mouseLeftJustPressed(): boolean {
-    return this._mouseLeftJustPressed;
+  /** 短クリック（離した瞬間 & 長押し閾値未満） */
+  get mouseLeftClicked(): boolean {
+    return this._mouseLeftJustReleased && this._mouseLeftReleaseDuration < 0.3;
   }
 
   /** 長押し発火済みかどうか */
@@ -90,6 +93,6 @@ export class InputManager {
   resetDelta(): void {
     this.mouseDX = 0;
     this.mouseDY = 0;
-    this._mouseLeftJustPressed = false;
+    this._mouseLeftJustReleased = false;
   }
 }

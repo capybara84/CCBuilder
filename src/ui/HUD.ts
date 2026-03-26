@@ -1,6 +1,17 @@
+import { ModeButton } from './ModeButton';
+import { GameMode } from '../game/Player';
+
 export class HUD {
+  readonly modeButton: ModeButton;
+
   constructor() {
     this.createCrosshair();
+    this.modeButton = new ModeButton();
+  }
+
+  /** モード変更コールバックを設定 */
+  onModeChange(cb: (mode: GameMode) => void): void {
+    this.modeButton.onModeChange(cb);
   }
 
   private createCrosshair(): void {

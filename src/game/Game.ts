@@ -55,6 +55,19 @@ export class Game {
 
     // HUD
     this.hud = new HUD();
+    this.hud.onModeChange((mode) => {
+      if (mode !== this.player.mode) {
+        this.player.toggleMode();
+      }
+    });
+
+    // Fキーでモード切替
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyF') {
+        this.player.toggleMode();
+        this.hud.modeButton.setActive(this.player.mode);
+      }
+    });
 
     // リサイズ
     window.addEventListener('resize', () => this.onResize());
