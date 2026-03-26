@@ -22,6 +22,7 @@ const FACES: { dir: number[]; verts: number[][]; normal: number[]; faceType: Fac
 let sharedAtlas: TextureAtlas | null = null;
 let sharedMaterial: THREE.MeshLambertMaterial | null = null;
 let sharedTransparentMaterial: THREE.MeshLambertMaterial | null = null;
+let sharedWaterMaterial: THREE.ShaderMaterial | null = null;
 
 export function getAtlas(): TextureAtlas {
   if (!sharedAtlas) {
@@ -36,12 +37,52 @@ export function getAtlas(): TextureAtlas {
       side: THREE.DoubleSide,
       depthWrite: false,
     });
+    // 水面用シェーダーマテリアル
+    sharedWaterMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uTexture: { value: sharedAtlas.texture },
+      },
+      vertexShader: `
+        uniform float uTime;
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        void main() {
+          vUv = uv;
+          vNormal = normalMatrix * normal;
+          vec3 pos = position;
+          // 上面のみ波を適用（法線が上向き）
+          // 上面を少し下げて隣接ブロックとの z-fighting を防止
+          if (normal.y > 0.5) {
+            pos.y -= 0.1;
+            pos.y += sin(pos.x * 2.0 + uTime * 1.5) * 0.04
+                   + sin(pos.z * 1.5 + uTime * 1.2) * 0.03;
+          }
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uTexture;
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        void main() {
+          vec4 texColor = texture2D(uTexture, vUv);
+          // 簡易ライティング
+          float light = dot(normalize(vNormal), normalize(vec3(0.5, 1.0, 0.3)));
+          light = 0.6 + 0.4 * max(light, 0.0);
+          gl_FragColor = vec4(texColor.rgb * light, 0.55);
+        }
+      `,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
   }
   return sharedAtlas;
 }
 
 export function getSharedMaterial(): THREE.MeshLambertMaterial {
-  getAtlas(); // 初期化保証
+  getAtlas();
   return sharedMaterial!;
 }
 
@@ -50,13 +91,25 @@ export function getSharedTransparentMaterial(): THREE.MeshLambertMaterial {
   return sharedTransparentMaterial!;
 }
 
+export function getSharedWaterMaterial(): THREE.ShaderMaterial {
+  getAtlas();
+  return sharedWaterMaterial!;
+}
+
+/** 水面シェーダーの時間を更新（Game.ts から毎フレーム呼ぶ） */
+export function updateWaterTime(time: number): void {
+  if (sharedWaterMaterial) {
+    sharedWaterMaterial.uniforms.uTime.value = time;
+  }
+}
+
 export class Chunk {
-  // ブロックデータ（0 = 空気）
   readonly blocks: Uint8Array;
-  readonly cx: number; // チャンク座標
+  readonly cx: number;
   readonly cz: number;
   mesh: THREE.Mesh | null = null;
   transparentMesh: THREE.Mesh | null = null;
+  waterMesh: THREE.Mesh | null = null;
 
   constructor(cx: number, cz: number) {
     this.cx = cx;
@@ -64,7 +117,6 @@ export class Chunk {
     this.blocks = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
   }
 
-  // ローカル座標 → 配列インデックス
   index(x: number, y: number, z: number): number {
     return y * CHUNK_SIZE * CHUNK_SIZE + z * CHUNK_SIZE + x;
   }
@@ -81,33 +133,26 @@ export class Chunk {
     this.blocks[this.index(x, y, z)] = id;
   }
 
-  /** 面を描画すべきか判定 */
   private shouldRenderFace(blockId: number, neighborId: number): boolean {
     if (neighborId === BlockTypes.AIR) return true;
-    // 不透明ブロック → 隣が透明なら描画
     if (!BlockTypes.isTransparent(blockId) && BlockTypes.isTransparent(neighborId)) return true;
-    // 透明ブロック → 隣が異なる透明ブロックなら描画
     if (BlockTypes.isTransparent(blockId) && neighborId !== blockId) return true;
     return false;
   }
 
-  // メッシュ生成（不透明と半透明を分離）
+  // メッシュ生成（不透明 / 半透明 / 水 の3種に分離）
   buildMesh(): THREE.Mesh {
     const atlas = getAtlas();
 
     // 不透明用
-    const oPos: number[] = [];
-    const oNor: number[] = [];
-    const oUvs: number[] = [];
-    const oIdx: number[] = [];
+    const oPos: number[] = [], oNor: number[] = [], oUvs: number[] = [], oIdx: number[] = [];
     let oVert = 0;
-
-    // 半透明用
-    const tPos: number[] = [];
-    const tNor: number[] = [];
-    const tUvs: number[] = [];
-    const tIdx: number[] = [];
+    // 半透明用（Glass, Leaves など）
+    const tPos: number[] = [], tNor: number[] = [], tUvs: number[] = [], tIdx: number[] = [];
     let tVert = 0;
+    // 水用
+    const wPos: number[] = [], wNor: number[] = [], wUvs: number[] = [], wIdx: number[] = [];
+    let wVert = 0;
 
     for (let y = 0; y < CHUNK_SIZE; y++) {
       for (let z = 0; z < CHUNK_SIZE; z++) {
@@ -118,14 +163,22 @@ export class Chunk {
           const blockUV = atlas.blockUVs.get(blockId);
           if (!blockUV) continue;
 
-          const isTransparent = BlockTypes.isTransparent(blockId);
-          const pos = isTransparent ? tPos : oPos;
-          const nor = isTransparent ? tNor : oNor;
-          const uv = isTransparent ? tUvs : oUvs;
-          const idx = isTransparent ? tIdx : oIdx;
-          let vert = isTransparent ? tVert : oVert;
+          const isWater = blockId === BlockTypes.WATER;
+          const isTransparent = !isWater && BlockTypes.isTransparent(blockId);
+
+          let pos: number[], nor: number[], uv: number[], idx: number[], vert: number;
+          if (isWater) {
+            pos = wPos; nor = wNor; uv = wUvs; idx = wIdx; vert = wVert;
+          } else if (isTransparent) {
+            pos = tPos; nor = tNor; uv = tUvs; idx = tIdx; vert = tVert;
+          } else {
+            pos = oPos; nor = oNor; uv = oUvs; idx = oIdx; vert = oVert;
+          }
 
           for (const face of FACES) {
+            // 水ブロックは上面のみ描画（側面/底面はちらつき防止のため省略）
+            if (isWater && face.faceType !== 'top') continue;
+
             const nx = x + face.dir[0];
             const ny = y + face.dir[1];
             const nz = z + face.dir[2];
@@ -145,11 +198,15 @@ export class Chunk {
             }
           }
 
-          if (isTransparent) tVert = vert;
+          if (isWater) wVert = vert;
+          else if (isTransparent) tVert = vert;
           else oVert = vert;
         }
       }
     }
+
+    const worldX = this.cx * CHUNK_SIZE;
+    const worldZ = this.cz * CHUNK_SIZE;
 
     // 不透明メッシュ
     const oGeo = new THREE.BufferGeometry();
@@ -157,48 +214,54 @@ export class Chunk {
     oGeo.setAttribute('normal', new THREE.Float32BufferAttribute(oNor, 3));
     oGeo.setAttribute('uv', new THREE.Float32BufferAttribute(oUvs, 2));
     oGeo.setIndex(oIdx);
-
     const opaqueMesh = new THREE.Mesh(oGeo, getSharedMaterial());
-    opaqueMesh.position.set(this.cx * CHUNK_SIZE, 0, this.cz * CHUNK_SIZE);
+    opaqueMesh.position.set(worldX, 0, worldZ);
 
-    // 半透明メッシュ
+    // 半透明メッシュ（Glass, Leaves）
+    this.disposeTransparent();
     if (tPos.length > 0) {
       const tGeo = new THREE.BufferGeometry();
       tGeo.setAttribute('position', new THREE.Float32BufferAttribute(tPos, 3));
       tGeo.setAttribute('normal', new THREE.Float32BufferAttribute(tNor, 3));
       tGeo.setAttribute('uv', new THREE.Float32BufferAttribute(tUvs, 2));
       tGeo.setIndex(tIdx);
-
       const transMesh = new THREE.Mesh(tGeo, getSharedTransparentMaterial());
-      transMesh.position.set(this.cx * CHUNK_SIZE, 0, this.cz * CHUNK_SIZE);
-      transMesh.renderOrder = 1; // 不透明の後に描画
-
-      this.disposeTransparent();
+      transMesh.position.set(worldX, 0, worldZ);
+      transMesh.renderOrder = 1;
       this.transparentMesh = transMesh;
     } else {
-      this.disposeTransparent();
       this.transparentMesh = null;
     }
 
-    // 古い不透明メッシュを破棄
+    // 水メッシュ（ShaderMaterial で波アニメ）
+    this.disposeWater();
+    if (wPos.length > 0) {
+      const wGeo = new THREE.BufferGeometry();
+      wGeo.setAttribute('position', new THREE.Float32BufferAttribute(wPos, 3));
+      wGeo.setAttribute('normal', new THREE.Float32BufferAttribute(wNor, 3));
+      wGeo.setAttribute('uv', new THREE.Float32BufferAttribute(wUvs, 2));
+      wGeo.setIndex(wIdx);
+      const waterMesh = new THREE.Mesh(wGeo, getSharedWaterMaterial());
+      waterMesh.position.set(worldX, 0, worldZ);
+      waterMesh.renderOrder = 2;
+      this.waterMesh = waterMesh;
+    } else {
+      this.waterMesh = null;
+    }
+
     this.dispose();
     this.mesh = opaqueMesh;
     return opaqueMesh;
   }
 
-  /** メッシュを再構築（親グループへの追加は呼び出し側が管理） */
   rebuildMesh(parent: THREE.Object3D): void {
-    if (this.mesh && this.mesh.parent) {
-      this.mesh.parent.remove(this.mesh);
-    }
-    if (this.transparentMesh && this.transparentMesh.parent) {
-      this.transparentMesh.parent.remove(this.transparentMesh);
-    }
+    if (this.mesh?.parent) parent.remove(this.mesh);
+    if (this.transparentMesh?.parent) parent.remove(this.transparentMesh);
+    if (this.waterMesh?.parent) parent.remove(this.waterMesh);
     const newMesh = this.buildMesh();
     parent.add(newMesh);
-    if (this.transparentMesh) {
-      parent.add(this.transparentMesh);
-    }
+    if (this.transparentMesh) parent.add(this.transparentMesh);
+    if (this.waterMesh) parent.add(this.waterMesh);
   }
 
   dispose(): void {
@@ -212,6 +275,13 @@ export class Chunk {
     if (this.transparentMesh) {
       this.transparentMesh.geometry.dispose();
       this.transparentMesh = null;
+    }
+  }
+
+  private disposeWater(): void {
+    if (this.waterMesh) {
+      this.waterMesh.geometry.dispose();
+      this.waterMesh = null;
     }
   }
 }

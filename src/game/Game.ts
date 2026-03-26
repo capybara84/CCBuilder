@@ -6,6 +6,8 @@ import { InputManager } from './InputManager';
 import { HUD } from '../ui/HUD';
 import { MapSerializer } from '../io/MapSerializer';
 import { Sky } from '../rendering/Sky';
+import { ParticleSystem } from '../rendering/ParticleSystem';
+import { updateWaterTime } from '../voxel/Chunk';
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
@@ -15,9 +17,11 @@ export class Game {
   private input: InputManager;
   private hud: HUD;
   private clock = new THREE.Clock();
-  private highlight: THREE.LineSegments; // ブロックハイライト
+  private highlight: THREE.LineSegments;
   private sky: Sky;
+  private particles: ParticleSystem;
   private paused = false;
+  private elapsedTime = 0;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -54,6 +58,16 @@ export class Game {
 
     // プレイヤー
     this.player = new Player(physicsWorld, this.input, this.world);
+
+    // パーティクルシステム
+    this.particles = new ParticleSystem(this.scene);
+    this.player.onBlockBreak = (wx, wy, wz, blockId) => {
+      this.particles.emitBreak(wx, wy, wz, blockId);
+    };
+    this.player.onBlockBreaking = (wx, wy, wz, blockId) => {
+      this.particles.emitBreaking(wx, wy, wz, blockId);
+    };
+    this.player.onBlockPlace = null;
 
     // ブロックハイライト（ワイヤーフレーム）
     const hlGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.01, 1.01, 1.01));
@@ -217,6 +231,15 @@ export class Game {
       // 一時停止中もクロックを消費（再開時に大きなdtが出ないように）
       this.clock.getDelta();
     }
+
+    // 時間更新
+    this.elapsedTime += dt;
+
+    // パーティクル更新
+    this.particles.update(dt);
+
+    // 水面アニメーション
+    updateWaterTime(this.elapsedTime);
 
     // 空の更新（一時停止中も雲は動かす）
     this.sky.update(this.player.camera, dt);
