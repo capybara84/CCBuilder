@@ -125,19 +125,19 @@ export class Sky {
 
   /** 雲を生成 */
   private createClouds(): void {
-    const cloudTexture = this.generateCloudTexture();
-
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 20; i++) {
+      // 各雲ごとに個別テクスチャ生成（形のバリエーション）
+      const tex = this.generateCloudTexture();
       const mat = new THREE.MeshBasicMaterial({
-        map: cloudTexture.clone(),
+        map: tex,
         transparent: true,
-        opacity: 0.4 + Math.random() * 0.3,
+        opacity: 0.7 + Math.random() * 0.2,
         depthWrite: false,
         side: THREE.DoubleSide,
       });
 
-      const scaleX = 15 + Math.random() * 25;
-      const scaleZ = 8 + Math.random() * 15;
+      const scaleX = 30 + Math.random() * 40;
+      const scaleZ = 15 + Math.random() * 20;
       const geo = new THREE.PlaneGeometry(scaleX, scaleZ);
 
       const cloud = new THREE.Mesh(geo, mat);
@@ -154,39 +154,65 @@ export class Sky {
     }
   }
 
-  /** プロシージャル雲テクスチャ生成 */
+  /** プロシージャル雲テクスチャ生成（もこもこした自然な雲） */
   private generateCloudTexture(): THREE.CanvasTexture {
-    const size = 64;
+    const w = 256;
+    const h = 128;
     const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext('2d')!;
 
-    // シンプルなノイズベースの雲
-    const imageData = ctx.createImageData(size, size);
-    const data = imageData.data;
+    // 複数の楕円を重ねてもこもこした雲を作る
+    ctx.clearRect(0, 0, w, h);
 
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        // 中心からの距離で端をフェードアウト
-        const dx = (x - size / 2) / (size / 2);
-        const dy = (y - size / 2) / (size / 2);
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const fade = Math.max(0, 1 - dist);
+    // 雲の塊を構成する楕円パーツ
+    const blobs: { cx: number; cy: number; rx: number; ry: number }[] = [];
 
-        // ランダムなノイズ
-        const noise = Math.random() * 0.4 + 0.6;
-        const alpha = fade * fade * noise * 255;
+    // メインの横長ベース
+    blobs.push({ cx: w * 0.5, cy: h * 0.55, rx: w * 0.38, ry: h * 0.22 });
 
-        const idx = (y * size + x) * 4;
-        data[idx] = 255;     // R
-        data[idx + 1] = 255; // G
-        data[idx + 2] = 255; // B
-        data[idx + 3] = alpha;
-      }
+    // 上に盛り上がるもこもこ
+    const bumpCount = 5 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < bumpCount; i++) {
+      const t = (i + 0.5) / bumpCount;
+      const cx = w * (0.15 + t * 0.7);
+      const cy = h * (0.3 + Math.random() * 0.15);
+      const rx = w * (0.08 + Math.random() * 0.12);
+      const ry = h * (0.15 + Math.random() * 0.2);
+      blobs.push({ cx, cy, rx, ry });
     }
 
-    ctx.putImageData(imageData, 0, 0);
+    // 下に少し膨らむ部分
+    for (let i = 0; i < 3; i++) {
+      const cx = w * (0.25 + Math.random() * 0.5);
+      const cy = h * (0.6 + Math.random() * 0.1);
+      const rx = w * (0.06 + Math.random() * 0.1);
+      const ry = h * (0.08 + Math.random() * 0.08);
+      blobs.push({ cx, cy, rx, ry });
+    }
+
+    // 各楕円を放射グラデーションで描画（白→透明）
+    for (const blob of blobs) {
+      const r = Math.max(blob.rx, blob.ry);
+      const gradient = ctx.createRadialGradient(
+        blob.cx, blob.cy, 0,
+        blob.cx, blob.cy, r,
+      );
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+      gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.5)');
+      gradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.2)');
+      gradient.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+
+      ctx.save();
+      ctx.translate(blob.cx, blob.cy);
+      ctx.scale(blob.rx / r, blob.ry / r);
+      ctx.translate(-blob.cx, -blob.cy);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(blob.cx - r, blob.cy - r, r * 2, r * 2);
+      ctx.restore();
+    }
+
     const tex = new THREE.CanvasTexture(canvas);
     return tex;
   }
