@@ -1,6 +1,21 @@
+import { ModeButton } from './ModeButton';
+import { Hotbar } from './Hotbar';
+import { GameMode } from '../game/Player';
+
 export class HUD {
+  readonly modeButton: ModeButton;
+  readonly hotbar: Hotbar;
+
   constructor() {
     this.createCrosshair();
+    this.createSaveHint();
+    this.modeButton = new ModeButton();
+    this.hotbar = new Hotbar();
+  }
+
+  /** モード変更コールバックを設定 */
+  onModeChange(cb: (mode: GameMode) => void): void {
+    this.modeButton.onModeChange(cb);
   }
 
   private createCrosshair(): void {
@@ -31,6 +46,25 @@ export class HUD {
     `;
     el.appendChild(h);
     el.appendChild(v);
+    document.body.appendChild(el);
+  }
+
+  private createSaveHint(): void {
+    const el = document.createElement('div');
+    el.id = 'save-hint';
+    el.style.cssText = `
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      color: rgba(255,255,255,0.5);
+      font-size: 12px;
+      font-family: monospace;
+      pointer-events: none;
+      z-index: 10;
+      text-align: right;
+      line-height: 1.6;
+    `;
+    el.innerHTML = 'Ctrl+S: Save<br>Ctrl+O: Load';
     document.body.appendChild(el);
   }
 }

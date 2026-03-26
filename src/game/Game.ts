@@ -4,6 +4,7 @@ import { World } from './World';
 import { Player } from './Player';
 import { InputManager } from './InputManager';
 import { HUD } from '../ui/HUD';
+import { MapSerializer } from '../io/MapSerializer';
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
@@ -55,6 +56,39 @@ export class Game {
 
     // HUD
     this.hud = new HUD();
+    this.hud.onModeChange((mode) => {
+      if (mode !== this.player.mode) {
+        this.player.toggleMode();
+      }
+    });
+
+    // ホットバー選択変更 → Player に反映
+    this.hud.hotbar.onChange((blockId) => {
+      this.player.selectedBlockId = blockId;
+    });
+
+    // キーボードショートカット
+    window.addEventListener('keydown', (e) => {
+      // Fキーでモード切替
+      if (e.code === 'KeyF') {
+        this.player.toggleMode();
+        this.hud.modeButton.setActive(this.player.mode);
+      }
+      // 数字キー1-6でホットバー選択
+      if (e.code >= 'Digit1' && e.code <= 'Digit6') {
+        this.hud.hotbar.select(parseInt(e.code.charAt(5)) - 1);
+      }
+      // Ctrl+S: 保存
+      if (e.code === 'KeyS' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        MapSerializer.save(this.world);
+      }
+      // Ctrl+O: ロード
+      if (e.code === 'KeyO' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        MapSerializer.load(this.world);
+      }
+    });
 
     // リサイズ
     window.addEventListener('resize', () => this.onResize());
@@ -72,6 +106,12 @@ export class Game {
 
     // 入力更新
     this.input.update(dt);
+
+    // スクロールでホットバー選択変更
+    if (this.input.scrollDelta !== 0) {
+      const hotbar = this.hud.hotbar;
+      hotbar.select(hotbar.selectedIndex + this.input.scrollDelta);
+    }
 
     // 物理シミュレーション
     this.physicsWorld.step();

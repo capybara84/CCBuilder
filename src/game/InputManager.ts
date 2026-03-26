@@ -2,16 +2,22 @@ export class InputManager {
   readonly keys = new Set<string>();
   mouseDX = 0;
   mouseDY = 0;
+  scrollDelta = 0;
+  private _scrollAccum = 0;
+  private static readonly SCROLL_THRESHOLD = 150; // deltaY の累積閾値
   private _locked = false;
 
   // マウスボタン状態
   private _mouseLeft = false;
-  private _mouseLeftJustPressed = false;
+  private _mouseLeftJustReleased = false;
+  private _mouseLeftReleaseDuration = 0; // 離した時点での押下時間
   mouseLeftDuration = 0;
   private _mouseLeftFired = false; // 長押し発火済みフラグ
 
   constructor(private canvas: HTMLCanvasElement) {
     window.addEventListener('keydown', (e) => {
+      // 修飾キー付きの場合はゲーム入力として登録しない
+      if (e.ctrlKey || e.metaKey) return;
       this.keys.add(e.code);
     });
     window.addEventListener('keyup', (e) => {
@@ -24,18 +30,28 @@ export class InputManager {
       this.mouseDY += e.movementY;
     });
 
+    // スクロール（累積して閾値を超えたら1ステップ）
+    document.addEventListener('wheel', (e) => {
+      this._scrollAccum += e.deltaY;
+      if (Math.abs(this._scrollAccum) >= InputManager.SCROLL_THRESHOLD) {
+        this.scrollDelta += Math.sign(this._scrollAccum);
+        this._scrollAccum = 0;
+      }
+    });
+
     // マウスボタン
     document.addEventListener('mousedown', (e) => {
       if (!this._locked) return;
       if (e.button === 0) {
         this._mouseLeft = true;
-        this._mouseLeftJustPressed = true;
         this.mouseLeftDuration = 0;
         this._mouseLeftFired = false;
       }
     });
     document.addEventListener('mouseup', (e) => {
       if (e.button === 0) {
+        this._mouseLeftJustReleased = true;
+        this._mouseLeftReleaseDuration = this.mouseLeftDuration;
         this._mouseLeft = false;
         this.mouseLeftDuration = 0;
         this._mouseLeftFired = false;
@@ -62,8 +78,9 @@ export class InputManager {
     return this._mouseLeft;
   }
 
-  get mouseLeftJustPressed(): boolean {
-    return this._mouseLeftJustPressed;
+  /** 短クリック（離した瞬間 & 長押し閾値未満） */
+  get mouseLeftClicked(): boolean {
+    return this._mouseLeftJustReleased && this._mouseLeftReleaseDuration < 0.3;
   }
 
   /** 長押し発火済みかどうか */
@@ -90,6 +107,7 @@ export class InputManager {
   resetDelta(): void {
     this.mouseDX = 0;
     this.mouseDY = 0;
-    this._mouseLeftJustPressed = false;
+    this.scrollDelta = 0;
+    this._mouseLeftJustReleased = false;
   }
 }
