@@ -23,7 +23,7 @@ export class Player {
   private collider: RAPIER.Collider;
   private yaw = 0;
   private pitch = 0;
-  selectedBlockId = BlockTypes.DIRT; // 設置するブロック（仮）
+  selectedBlockId: number = BlockTypes.GRASS; // ホットバー初期選択と同期
   mode: GameMode = 'walk';
 
   /** 現在のレイキャスト結果（Game側でハイライト表示に使用） */

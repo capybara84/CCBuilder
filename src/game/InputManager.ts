@@ -2,6 +2,9 @@ export class InputManager {
   readonly keys = new Set<string>();
   mouseDX = 0;
   mouseDY = 0;
+  scrollDelta = 0;
+  private _scrollAccum = 0;
+  private static readonly SCROLL_THRESHOLD = 150; // deltaY の累積閾値
   private _locked = false;
 
   // マウスボタン状態
@@ -23,6 +26,15 @@ export class InputManager {
       if (!this._locked) return;
       this.mouseDX += e.movementX;
       this.mouseDY += e.movementY;
+    });
+
+    // スクロール（累積して閾値を超えたら1ステップ）
+    document.addEventListener('wheel', (e) => {
+      this._scrollAccum += e.deltaY;
+      if (Math.abs(this._scrollAccum) >= InputManager.SCROLL_THRESHOLD) {
+        this.scrollDelta += Math.sign(this._scrollAccum);
+        this._scrollAccum = 0;
+      }
     });
 
     // マウスボタン
@@ -93,6 +105,7 @@ export class InputManager {
   resetDelta(): void {
     this.mouseDX = 0;
     this.mouseDY = 0;
+    this.scrollDelta = 0;
     this._mouseLeftJustReleased = false;
   }
 }

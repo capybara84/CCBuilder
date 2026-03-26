@@ -61,11 +61,21 @@ export class Game {
       }
     });
 
-    // Fキーでモード切替
+    // ホットバー選択変更 → Player に反映
+    this.hud.hotbar.onChange((blockId) => {
+      this.player.selectedBlockId = blockId;
+    });
+
+    // キーボードショートカット
     window.addEventListener('keydown', (e) => {
+      // Fキーでモード切替
       if (e.code === 'KeyF') {
         this.player.toggleMode();
         this.hud.modeButton.setActive(this.player.mode);
+      }
+      // 数字キー1-6でホットバー選択
+      if (e.code >= 'Digit1' && e.code <= 'Digit6') {
+        this.hud.hotbar.select(parseInt(e.code.charAt(5)) - 1);
       }
     });
 
@@ -85,6 +95,12 @@ export class Game {
 
     // 入力更新
     this.input.update(dt);
+
+    // スクロールでホットバー選択変更
+    if (this.input.scrollDelta !== 0) {
+      const hotbar = this.hud.hotbar;
+      hotbar.select(hotbar.selectedIndex + this.input.scrollDelta);
+    }
 
     // 物理シミュレーション
     this.physicsWorld.step();

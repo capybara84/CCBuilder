@@ -1,12 +1,15 @@
 import { ModeButton } from './ModeButton';
+import { Hotbar } from './Hotbar';
 import { GameMode } from '../game/Player';
 
 export class HUD {
   readonly modeButton: ModeButton;
+  readonly hotbar: Hotbar;
 
   constructor() {
     this.createCrosshair();
     this.modeButton = new ModeButton();
+    this.hotbar = new Hotbar();
   }
 
   /** モード変更コールバックを設定 */
