@@ -4,6 +4,7 @@ import { InputManager } from './InputManager';
 import { World } from './World';
 import { voxelRaycast, RaycastHit } from './Raycast';
 import { BlockTypes } from '../voxel/BlockTypes';
+import { getTerrainHeight } from '../voxel/WorldGen';
 
 const MOVE_SPEED = 5;
 const BUILD_FLY_SPEED = 10;
@@ -38,9 +39,12 @@ export class Player {
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
 
     // プレイヤー物理ボディ（カプセル）
-    const spawnY = 3; // 地面(y=1)の少し上にスポーン
+    const spawnX = 32;
+    const spawnZ = 32;
+    const terrainH = getTerrainHeight(world.chunks, 4, spawnX, spawnZ);
+    const spawnY = terrainH + PLAYER_HALF_HEIGHT + PLAYER_RADIUS + 0.5;
     const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
-      .setTranslation(32, spawnY, 32)
+      .setTranslation(spawnX, spawnY, spawnZ)
       .lockRotations(); // 物理回転をロック
     this.body = physicsWorld.createRigidBody(bodyDesc);
 
