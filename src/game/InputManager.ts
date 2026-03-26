@@ -14,14 +14,37 @@ export class InputManager {
   mouseLeftDuration = 0;
   private _mouseLeftFired = false; // 長押し発火済みフラグ
 
+  // カーソルキーによるカメラ回転（プレビュー / Pointer Lock 不可環境用）
+  private static readonly ARROW_ROTATE_SPEED = 3; // rad/sec
+
+  // Cキーによるクリック代替
+  private _cKeyDown = false;
+  private _cKeyJustReleased = false;
+  private _cKeyReleaseDuration = 0;
+  cKeyDuration = 0;
+  private _cKeyFired = false;
+
   constructor(private canvas: HTMLCanvasElement) {
     window.addEventListener('keydown', (e) => {
       // 修飾キー付きの場合はゲーム入力として登録しない
       if (e.ctrlKey || e.metaKey) return;
       this.keys.add(e.code);
+      // Cキー → マウス左クリック代替
+      if (e.code === 'KeyC' && !this._cKeyDown) {
+        this._cKeyDown = true;
+        this.cKeyDuration = 0;
+        this._cKeyFired = false;
+      }
     });
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.code);
+      if (e.code === 'KeyC') {
+        this._cKeyJustReleased = true;
+        this._cKeyReleaseDuration = this.cKeyDuration;
+        this._cKeyDown = false;
+        this.cKeyDuration = 0;
+        this._cKeyFired = false;
+      }
     });
 
     document.addEventListener('mousemove', (e) => {
@@ -75,21 +98,24 @@ export class InputManager {
   }
 
   get mouseLeft(): boolean {
-    return this._mouseLeft;
+    return this._mouseLeft || this._cKeyDown;
   }
 
   /** 短クリック（離した瞬間 & 長押し閾値未満） */
   get mouseLeftClicked(): boolean {
-    return this._mouseLeftJustReleased && this._mouseLeftReleaseDuration < 0.3;
+    return (this._mouseLeftJustReleased && this._mouseLeftReleaseDuration < 0.3) ||
+           (this._cKeyJustReleased && this._cKeyReleaseDuration < 0.3);
   }
 
   /** 長押し発火済みかどうか */
   get mouseLeftFired(): boolean {
-    return this._mouseLeftFired;
+    return this._mouseLeftFired || this._cKeyFired;
   }
 
   set mouseLeftFired(v: boolean) {
-    this._mouseLeftFired = v;
+    // アクティブな入力ソースのみフラグを立てる
+    if (this._mouseLeft) this._mouseLeftFired = v;
+    if (this._cKeyDown) this._cKeyFired = v;
   }
 
   isDown(code: string): boolean {
@@ -101,6 +127,16 @@ export class InputManager {
     if (this._mouseLeft) {
       this.mouseLeftDuration += dt;
     }
+    // Cキー長押し計測
+    if (this._cKeyDown) {
+      this.cKeyDuration += dt;
+    }
+    // カーソルキーでカメラ回転（Pointer Lock 不要）
+    const rotateAmount = InputManager.ARROW_ROTATE_SPEED * dt * 100;
+    if (this.keys.has('ArrowLeft'))  this.mouseDX -= rotateAmount;
+    if (this.keys.has('ArrowRight')) this.mouseDX += rotateAmount;
+    if (this.keys.has('ArrowUp'))    this.mouseDY -= rotateAmount;
+    if (this.keys.has('ArrowDown'))  this.mouseDY += rotateAmount;
   }
 
   // フレーム末尾でデルタをリセット
@@ -109,5 +145,6 @@ export class InputManager {
     this.mouseDY = 0;
     this.scrollDelta = 0;
     this._mouseLeftJustReleased = false;
+    this._cKeyJustReleased = false;
   }
 }

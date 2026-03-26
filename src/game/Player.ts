@@ -70,12 +70,10 @@ export class Player {
   }
 
   update(dt: number): void {
-    // マウス回転
-    if (this.input.locked) {
-      this.yaw -= this.input.mouseDX * MOUSE_SENSITIVITY;
-      this.pitch -= this.input.mouseDY * MOUSE_SENSITIVITY;
-      this.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch));
-    }
+    // カメラ回転（マウス: Pointer Lock 時、カーソルキー: 常時）
+    this.yaw -= this.input.mouseDX * MOUSE_SENSITIVITY;
+    this.pitch -= this.input.mouseDY * MOUSE_SENSITIVITY;
+    this.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch));
 
     // 移動方向を計算
     const forward = new THREE.Vector3(
@@ -206,7 +204,7 @@ export class Player {
   }
 
   private handleBlockInteraction(): void {
-    if (!this.input.locked || !this.currentHit) return;
+    if (!this.currentHit) return;
     const hit = this.currentHit;
     const camPos = this.camera.position;
 
@@ -230,7 +228,8 @@ export class Player {
     }
 
     // 左長押し → 破壊
-    if (this.input.mouseLeft && this.input.mouseLeftDuration >= DESTROY_HOLD_TIME && !this.input.mouseLeftFired) {
+    const holdDuration = Math.max(this.input.mouseLeftDuration, this.input.cKeyDuration);
+    if (this.input.mouseLeft && holdDuration >= DESTROY_HOLD_TIME && !this.input.mouseLeftFired) {
       const blockId = this.world.getBlock(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z);
       const def = BlockTypes.get(blockId);
       if (def && def.breakable) {
