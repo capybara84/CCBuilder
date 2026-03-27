@@ -1,3 +1,5 @@
+import { TouchControls } from '../ui/TouchControls';
+
 export class InputManager {
   readonly keys = new Set<string>();
   mouseDX = 0;
@@ -23,6 +25,11 @@ export class InputManager {
   private _cKeyReleaseDuration = 0;
   cKeyDuration = 0;
   private _cKeyFired = false;
+
+  // タッチコントロール
+  touchControls: TouchControls | null = null;
+  moveAxisX = 0; // アナログ移動軸（-1〜1）
+  moveAxisY = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
     window.addEventListener('keydown', (e) => {
@@ -81,9 +88,9 @@ export class InputManager {
       }
     });
 
-    // クリックで Pointer Lock
+    // クリックで Pointer Lock（タッチデバイスではスキップ）
     canvas.addEventListener('click', () => {
-      if (!this._locked) {
+      if (!this._locked && !this.isTouchActive) {
         canvas.requestPointerLock();
       }
     });
@@ -98,7 +105,8 @@ export class InputManager {
   }
 
   get mouseLeft(): boolean {
-    return this._mouseLeft || this._cKeyDown;
+    return this._mouseLeft || this._cKeyDown ||
+           (this.touchControls?.touchHeld ?? false);
   }
 
   /** 短クリック（離した瞬間 & 長押し閾値未満） */
@@ -122,10 +130,16 @@ export class InputManager {
     return this.keys.has(code);
   }
 
-  /** WASD のいずれかが押されているか */
+  /** タッチ入力がアクティブか */
+  get isTouchActive(): boolean {
+    return this.touchControls !== null && this.touchControls.active;
+  }
+
+  /** WASD のいずれかが押されているか（アナログ軸含む） */
   get isMoving(): boolean {
     return this.keys.has('KeyW') || this.keys.has('KeyA') ||
-           this.keys.has('KeyS') || this.keys.has('KeyD');
+           this.keys.has('KeyS') || this.keys.has('KeyD') ||
+           this.moveAxisX !== 0 || this.moveAxisY !== 0;
   }
 
   /** フレーム更新（dt秒） */
@@ -137,6 +151,31 @@ export class InputManager {
     if (this._cKeyDown) {
       this.cKeyDuration += dt;
     }
+
+    // タッチコントロールからの入力注入
+    if (this.touchControls) {
+      this.touchControls.update(dt);
+
+      // カメラドラッグ → mouseDX/DY に加算
+      this.mouseDX += this.touchControls.cameraDX;
+      this.mouseDY += this.touchControls.cameraDY;
+
+      // ジョイスティック → アナログ移動軸
+      this.moveAxisX = this.touchControls.axisX;
+      this.moveAxisY = this.touchControls.axisY;
+
+      // タッチタップ → 短クリックとして注入
+      if (this.touchControls.touchTap) {
+        this._mouseLeftJustReleased = true;
+        this._mouseLeftReleaseDuration = 0.1; // 短タップ扱い
+      }
+
+      // タッチ長押し → mouseLeftDuration に反映（mouseLeft ゲッターで touchHeld を参照済み）
+      if (this.touchControls.touchHeld) {
+        this.mouseLeftDuration = this.touchControls.touchHeldDuration;
+      }
+    }
+
     // カーソルキーでカメラ回転（Pointer Lock 不要）
     const rotateAmount = InputManager.ARROW_ROTATE_SPEED * dt * 100;
     if (this.keys.has('ArrowLeft'))  this.mouseDX -= rotateAmount;
@@ -152,5 +191,6 @@ export class InputManager {
     this.scrollDelta = 0;
     this._mouseLeftJustReleased = false;
     this._cKeyJustReleased = false;
+    this.touchControls?.resetDelta();
   }
 }

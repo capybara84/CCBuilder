@@ -8,6 +8,7 @@ import { MapSerializer } from '../io/MapSerializer';
 import { Sky } from '../rendering/Sky';
 import { ParticleSystem } from '../rendering/ParticleSystem';
 import { updateWaterTime } from '../voxel/Chunk';
+import { TouchControls } from '../ui/TouchControls';
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
@@ -51,6 +52,11 @@ export class Game {
 
     // 入力
     this.input = new InputManager(canvas);
+
+    // タッチデバイスならタッチコントロールを有効化
+    if (navigator.maxTouchPoints > 0) {
+      this.input.touchControls = new TouchControls();
+    }
 
     // ワールド
     this.world = new World(physicsWorld);
@@ -211,7 +217,9 @@ export class Game {
 
   private pause(): void {
     this.paused = true;
-    document.exitPointerLock();
+    if (!this.input.isTouchActive) {
+      document.exitPointerLock();
+    }
     this.hud.pauseMenu.show();
   }
 
@@ -219,13 +227,17 @@ export class Game {
     this.paused = false;
     this.hud.pauseMenu.hide();
     this.hud.inventory.hide();
-    const canvas = this.renderer.domElement;
-    canvas.requestPointerLock();
+    if (!this.input.isTouchActive) {
+      const canvas = this.renderer.domElement;
+      canvas.requestPointerLock();
+    }
   }
 
   private openInventory(): void {
     this.paused = true;
-    document.exitPointerLock();
+    if (!this.input.isTouchActive) {
+      document.exitPointerLock();
+    }
     this.hud.hotbar.deselect();
     this.hud.inventory.show();
   }
@@ -246,8 +258,18 @@ export class Game {
     this.paused = false;
     this.hud.pauseMenu.hide();
     if (!this.hud.hotbar.hasSelection) this.hud.hotbar.select(0);
-    const canvas = this.renderer.domElement;
-    canvas.requestPointerLock();
+    if (!this.input.isTouchActive) {
+      const canvas = this.renderer.domElement;
+      canvas.requestPointerLock();
+    }
+  }
+
+  /** インベントリを閉じるが Pointer Lock はかけない */
+  private closeInventoryNoLock(): void {
+    this.hud.inventory.hide();
+    this.paused = false;
+    this.hud.pauseMenu.hide();
+    if (!this.hud.hotbar.hasSelection) this.hud.hotbar.select(0);
   }
 
   /** インベントリを閉じるが Pointer Lock はかけない */
