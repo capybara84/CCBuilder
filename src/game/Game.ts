@@ -40,7 +40,7 @@ export class Game {
     this.scene.add(this.sky.group);
 
     // フォグ（スカイドームの地平線色と合わせる）
-    this.scene.fog = new THREE.Fog(this.sky.fogColor, 50, 150);
+    this.scene.fog = new THREE.Fog(this.sky.fogColor, 60, 200);
     this.renderer.setClearColor(this.sky.fogColor);
 
     // ライト
@@ -330,6 +330,9 @@ export class Game {
 
     // 空の更新（一時停止中も雲は動かす）
     this.sky.update(this.player.camera, dt);
+
+    // 視錐台カリング
+    this.world.updateVisibility(this.player.camera);
 
     // 描画
     this.renderer.render(this.scene, this.player.camera);

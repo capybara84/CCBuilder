@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { InputManager } from './InputManager';
-import { World } from './World';
+import { World, MAP_W, MAP_D, CHUNKS_X, CHUNKS_Y, CHUNKS_Z } from './World';
 import { voxelRaycast, RaycastHit } from './Raycast';
 import { BlockTypes } from '../voxel/BlockTypes';
 import { getTerrainHeight } from '../voxel/WorldGen';
@@ -45,9 +45,9 @@ export class Player {
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
 
     // プレイヤー物理ボディ（カプセル）
-    const spawnX = 32;
-    const spawnZ = 32;
-    const terrainH = getTerrainHeight(world.chunks, 4, spawnX, spawnZ);
+    const spawnX = Math.floor(MAP_W / 2);
+    const spawnZ = Math.floor(MAP_D / 2);
+    const terrainH = getTerrainHeight(world.chunks, CHUNKS_X, CHUNKS_Y, CHUNKS_Z, spawnX, spawnZ);
     const spawnY = terrainH + PLAYER_HALF_HEIGHT + PLAYER_RADIUS + 0.5;
     const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(spawnX, spawnY, spawnZ)
