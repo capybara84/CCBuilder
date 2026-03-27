@@ -116,10 +116,18 @@ export class Player {
 
   private updateWalk(dt: number, forward: THREE.Vector3, right: THREE.Vector3): void {
     const move = new THREE.Vector3();
-    if (this.input.isDown('KeyW')) move.add(forward);
-    if (this.input.isDown('KeyS')) move.sub(forward);
-    if (this.input.isDown('KeyA')) move.sub(right);
-    if (this.input.isDown('KeyD')) move.add(right);
+
+    // アナログ軸（タッチジョイスティック）が有効ならそちらを使用
+    if (this.input.moveAxisX !== 0 || this.input.moveAxisY !== 0) {
+      move.addScaledVector(forward, this.input.moveAxisY);
+      move.addScaledVector(right, this.input.moveAxisX);
+    } else {
+      // WASD フォールバック
+      if (this.input.isDown('KeyW')) move.add(forward);
+      if (this.input.isDown('KeyS')) move.sub(forward);
+      if (this.input.isDown('KeyA')) move.sub(right);
+      if (this.input.isDown('KeyD')) move.add(right);
+    }
 
     if (move.lengthSq() > 0) {
       move.normalize().multiplyScalar(MOVE_SPEED);
@@ -143,8 +151,7 @@ export class Player {
 
       // 移動方向に応じて隣接ブロックをチェック（前後左右）
       const candidates: [number, number][] = [];
-      if (this.input.isDown('KeyW') || this.input.isDown('KeyS') ||
-          this.input.isDown('KeyA') || this.input.isDown('KeyD')) {
+      if (move.lengthSq() > 0) {
         const dir = move.clone().normalize();
         // 移動方向の隣接ブロック座標を計算
         const targetX = Math.floor(pos.x + dir.x * 0.9);
@@ -187,10 +194,17 @@ export class Player {
 
   private updateBuild(dt: number, forward: THREE.Vector3, right: THREE.Vector3): void {
     const move = new THREE.Vector3();
-    if (this.input.isDown('KeyW')) move.add(forward);
-    if (this.input.isDown('KeyS')) move.sub(forward);
-    if (this.input.isDown('KeyA')) move.sub(right);
-    if (this.input.isDown('KeyD')) move.add(right);
+
+    // アナログ軸（タッチジョイスティック）が有効ならそちらを使用
+    if (this.input.moveAxisX !== 0 || this.input.moveAxisY !== 0) {
+      move.addScaledVector(forward, this.input.moveAxisY);
+      move.addScaledVector(right, this.input.moveAxisX);
+    } else {
+      if (this.input.isDown('KeyW')) move.add(forward);
+      if (this.input.isDown('KeyS')) move.sub(forward);
+      if (this.input.isDown('KeyA')) move.sub(right);
+      if (this.input.isDown('KeyD')) move.add(right);
+    }
     if (this.input.isDown('Space')) move.y += 1;
     if (this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight')) move.y -= 1;
 

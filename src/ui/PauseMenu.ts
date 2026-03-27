@@ -14,6 +14,7 @@ export class PauseMenu {
   constructor() {
     this.container = document.createElement('div');
     this.container.id = 'pause-menu';
+    this.container.dataset.hud = 'true';
     this.container.style.cssText = `
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -76,6 +77,10 @@ export class PauseMenu {
         btn.style.background = 'rgba(80, 80, 100, 0.8)';
       });
       btn.addEventListener('click', handler);
+      btn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        handler();
+      });
       panel.appendChild(btn);
     }
 

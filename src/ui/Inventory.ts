@@ -18,6 +18,7 @@ export class Inventory {
   constructor() {
     this.container = document.createElement('div');
     this.container.id = 'inventory';
+    this.container.dataset.hud = 'true';
     this.container.style.cssText = `
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -96,6 +97,10 @@ export class Inventory {
       cursor: pointer;
     `;
     closeBtn.addEventListener('click', () => this._onClose?.());
+    closeBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      this._onClose?.();
+    });
     panel.appendChild(closeBtn);
 
     this.container.appendChild(panel);
@@ -139,6 +144,10 @@ export class Inventory {
     cell.appendChild(swatch);
     cell.appendChild(label);
     cell.addEventListener('click', () => {
+      this.toggleSelect(block.id);
+    });
+    cell.addEventListener('touchstart', (e) => {
+      e.preventDefault();
       this.toggleSelect(block.id);
     });
 

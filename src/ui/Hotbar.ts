@@ -28,6 +28,7 @@ export class Hotbar {
   constructor() {
     const container = document.createElement('div');
     container.id = 'hotbar';
+    container.dataset.hud = 'true';
     container.style.cssText = `
       position: fixed;
       bottom: 16px;
@@ -64,6 +65,10 @@ export class Hotbar {
       slot.appendChild(swatch);
       slot.appendChild(label);
       slot.addEventListener('click', () => this._onSlotClick?.(i));
+      slot.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this._onSlotClick?.(i);
+      });
       container.appendChild(slot);
 
       this.slotElements.push(slot);
