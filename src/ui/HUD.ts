@@ -50,7 +50,12 @@ export class HUD {
       left: '16px',
       zIndex: '20',
     });
+    this.menuButton.dataset.hud = 'true';
     this.menuButton.addEventListener('click', () => this._onMenu?.());
+    this.menuButton.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      this._onMenu?.();
+    });
 
     // 右下: JUMP ボタン
     this.jumpButton = this.createButton('JUMP', {
@@ -59,6 +64,7 @@ export class HUD {
       right: '16px',
       zIndex: '20',
     });
+    this.jumpButton.dataset.hud = 'true';
     this.jumpButton.addEventListener('mousedown', () => this._onJump?.());
     this.jumpButton.addEventListener('touchstart', (e) => {
       e.preventDefault();
@@ -72,7 +78,12 @@ export class HUD {
       right: '16px',
       zIndex: '20',
     });
+    this.inventoryButton.dataset.hud = 'true';
     this.inventoryButton.addEventListener('click', () => this._onInventory?.());
+    this.inventoryButton.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      this._onInventory?.();
+    });
 
     this.createHelpHint();
   }
@@ -106,6 +117,7 @@ export class HUD {
   private createCrosshair(): void {
     const el = document.createElement('div');
     el.id = 'crosshair';
+    el.dataset.hud = 'true';
     el.style.cssText = `
       position: fixed;
       top: 50%;

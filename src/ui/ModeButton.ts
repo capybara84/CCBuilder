@@ -11,6 +11,7 @@ export class ModeButton {
   constructor() {
     const container = document.createElement('div');
     container.id = 'mode-buttons';
+    container.dataset.hud = 'true';
     container.style.cssText = `
       position: fixed;
       top: 16px;
@@ -28,7 +29,17 @@ export class ModeButton {
       this.setActive('walk');
       this.onChange?.('walk');
     });
+    this.walkBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      this.setActive('walk');
+      this.onChange?.('walk');
+    });
     this.buildBtn.addEventListener('click', () => {
+      this.setActive('build');
+      this.onChange?.('build');
+    });
+    this.buildBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
       this.setActive('build');
       this.onChange?.('build');
     });
