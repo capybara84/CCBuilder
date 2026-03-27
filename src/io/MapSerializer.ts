@@ -1,7 +1,17 @@
-import { World } from '../game/World';
+import { World, MAP_W, MAP_D, MAP_H, CHUNKS_X, CHUNKS_Z } from '../game/World';
+import { CHUNK_SIZE } from '../voxel/Chunk';
 
-/** 保存フォーマット */
-interface VoxMap {
+/** 保存フォーマット v2（Y段対応） */
+interface VoxMapV2 {
+  version: number;
+  mapW: number;
+  mapD: number;
+  mapH: number;
+  chunks: { cx: number; cy: number; cz: number; blocks: number[] }[];
+}
+
+/** v1 フォーマット（後方互換用） */
+interface VoxMapV1 {
   version: number;
   mapW: number;
   mapD: number;
@@ -11,12 +21,14 @@ interface VoxMap {
 export class MapSerializer {
   /** World → JSON 文字列 */
   static serialize(world: World): string {
-    const data: VoxMap = {
-      version: 1,
-      mapW: 64,
-      mapD: 64,
+    const data: VoxMapV2 = {
+      version: 2,
+      mapW: MAP_W,
+      mapD: MAP_D,
+      mapH: MAP_H,
       chunks: world.chunks.map((chunk) => ({
         cx: chunk.cx,
+        cy: chunk.cy,
         cz: chunk.cz,
         blocks: Array.from(chunk.blocks),
       })),
@@ -26,14 +38,34 @@ export class MapSerializer {
 
   /** JSON 文字列 → World にロード */
   static deserialize(json: string, world: World): void {
-    const data: VoxMap = JSON.parse(json);
-    if (data.version !== 1) {
-      throw new Error(`Unsupported voxmap version: ${data.version}`);
-    }
-    for (const chunkData of data.chunks) {
-      world.loadChunkData(chunkData.cx, chunkData.cz, chunkData.blocks);
+    const raw = JSON.parse(json);
+    if (raw.version === 1) {
+      this.deserializeV1(raw as VoxMapV1, world);
+    } else if (raw.version === 2) {
+      this.deserializeV2(raw as VoxMapV2, world);
+    } else {
+      throw new Error(`Unsupported voxmap version: ${raw.version}`);
     }
     world.rebuildAllColliders();
+  }
+
+  /** v2 フォーマットのロード */
+  private static deserializeV2(data: VoxMapV2, world: World): void {
+    for (const chunkData of data.chunks) {
+      world.loadChunkData(chunkData.cx, chunkData.cy, chunkData.cz, chunkData.blocks);
+    }
+  }
+
+  /** v1 フォーマットのロード（後方互換: cy=0、旧マップを中央にオフセット） */
+  private static deserializeV1(data: VoxMapV1, world: World): void {
+    const oldChunksX = data.mapW / CHUNK_SIZE;
+    const oldChunksZ = data.mapD / CHUNK_SIZE;
+    // 旧マップを新ワールドの中央に配置
+    const offsetX = Math.floor((CHUNKS_X - oldChunksX) / 2);
+    const offsetZ = Math.floor((CHUNKS_Z - oldChunksZ) / 2);
+    for (const chunkData of data.chunks) {
+      world.loadChunkData(chunkData.cx + offsetX, 0, chunkData.cz + offsetZ, chunkData.blocks);
+    }
   }
 
   /** ファイルに保存 */

@@ -33,7 +33,7 @@ export class Sky {
 
   /** 空のグラデーションドームを作成 */
   private createSkyDome(): THREE.Mesh {
-    const geo = new THREE.SphereGeometry(400, 32, 16);
+    const geo = new THREE.SphereGeometry(600, 32, 16);
     const mat = new THREE.ShaderMaterial({
       uniforms: {
         uZenithColor: { value: Sky.ZENITH_COLOR },
@@ -62,9 +62,11 @@ export class Sky {
       `,
       side: THREE.BackSide,
       depthWrite: false,
+      fog: false,
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.renderOrder = -1; // 最背面に描画
+    mesh.frustumCulled = false;
     return mesh;
   }
 
@@ -143,9 +145,9 @@ export class Sky {
       const cloud = new THREE.Mesh(geo, mat);
       cloud.rotation.x = -Math.PI / 2; // 水平に配置
       cloud.position.set(
-        (Math.random() - 0.5) * 300,
+        (Math.random() - 0.5) * 500,
         60 + Math.random() * 30,       // 高度 60〜90
-        (Math.random() - 0.5) * 300,
+        (Math.random() - 0.5) * 500,
       );
       cloud.renderOrder = 1;
 
@@ -228,7 +230,7 @@ export class Sky {
     this.skyDome.position.copy(camera.position);
 
     // 太陽をカメラからの相対位置に配置
-    const sunPos = this.sunDirection.clone().multiplyScalar(350);
+    const sunPos = this.sunDirection.clone().multiplyScalar(500);
     sunPos.add(camera.position);
     this.sunSprite.position.copy(sunPos);
     this.sunGlowSprite.position.copy(sunPos);
@@ -238,8 +240,8 @@ export class Sky {
     for (const cloud of this.clouds) {
       cloud.position.x += windSpeed * _dt;
       // 画面外に出たらループ
-      if (cloud.position.x - camera.position.x > 200) {
-        cloud.position.x = camera.position.x - 200;
+      if (cloud.position.x - camera.position.x > 300) {
+        cloud.position.x = camera.position.x - 300;
         cloud.position.z = camera.position.z + (Math.random() - 0.5) * 300;
       }
     }

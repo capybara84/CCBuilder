@@ -106,13 +106,15 @@ export function updateWaterTime(time: number): void {
 export class Chunk {
   readonly blocks: Uint8Array;
   readonly cx: number;
+  readonly cy: number;
   readonly cz: number;
   mesh: THREE.Mesh | null = null;
   transparentMesh: THREE.Mesh | null = null;
   waterMesh: THREE.Mesh | null = null;
 
-  constructor(cx: number, cz: number) {
+  constructor(cx: number, cy: number, cz: number) {
     this.cx = cx;
+    this.cy = cy;
     this.cz = cz;
     this.blocks = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
   }
@@ -206,6 +208,7 @@ export class Chunk {
     }
 
     const worldX = this.cx * CHUNK_SIZE;
+    const worldY = this.cy * CHUNK_SIZE;
     const worldZ = this.cz * CHUNK_SIZE;
 
     // 不透明メッシュ
@@ -215,7 +218,7 @@ export class Chunk {
     oGeo.setAttribute('uv', new THREE.Float32BufferAttribute(oUvs, 2));
     oGeo.setIndex(oIdx);
     const opaqueMesh = new THREE.Mesh(oGeo, getSharedMaterial());
-    opaqueMesh.position.set(worldX, 0, worldZ);
+    opaqueMesh.position.set(worldX, worldY, worldZ);
 
     // 半透明メッシュ（Glass, Leaves）
     this.disposeTransparent();
@@ -226,7 +229,7 @@ export class Chunk {
       tGeo.setAttribute('uv', new THREE.Float32BufferAttribute(tUvs, 2));
       tGeo.setIndex(tIdx);
       const transMesh = new THREE.Mesh(tGeo, getSharedTransparentMaterial());
-      transMesh.position.set(worldX, 0, worldZ);
+      transMesh.position.set(worldX, worldY, worldZ);
       transMesh.renderOrder = 1;
       this.transparentMesh = transMesh;
     } else {
@@ -242,7 +245,7 @@ export class Chunk {
       wGeo.setAttribute('uv', new THREE.Float32BufferAttribute(wUvs, 2));
       wGeo.setIndex(wIdx);
       const waterMesh = new THREE.Mesh(wGeo, getSharedWaterMaterial());
-      waterMesh.position.set(worldX, 0, worldZ);
+      waterMesh.position.set(worldX, worldY, worldZ);
       waterMesh.renderOrder = 2;
       this.waterMesh = waterMesh;
     } else {
