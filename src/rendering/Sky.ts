@@ -7,17 +7,22 @@ import * as THREE from 'three';
 export class Sky {
   readonly group = new THREE.Group();
 
+  // 昼夜サイクル
+  private static readonly DAY_DURATION = 144; // 秒（2.4分 = ゲーム内24時間）
+  timeOfDay = 0.25; // 0〜1（0.25=正午スタート）
+
   // 太陽の方向（DirectionalLight と連動）
-  private sunDirection = new THREE.Vector3(50, 100, 30).normalize();
+  private sunDirection = new THREE.Vector3();
   private sunSprite: THREE.Sprite;
   private sunGlowSprite: THREE.Sprite;
   private clouds: THREE.Mesh[] = [];
   private skyDome: THREE.Mesh;
+  private stars: THREE.Points;
 
   // 色定義
-  private static readonly ZENITH_COLOR = new THREE.Color(0x1e90ff);   // 天頂: 深い青
-  private static readonly HORIZON_COLOR = new THREE.Color(0xb0d4f1);  // 地平線: 明るい水色
-  private static readonly FOG_COLOR = new THREE.Color(0xb0d4f1);      // フォグ色（地平線と合わせる）
+  private static readonly ZENITH_COLOR = new THREE.Color(0x4a90d9);   // 天頂: 青
+  private static readonly HORIZON_COLOR = new THREE.Color(0x5a9fdf);  // 地平線: わずかに明るい青
+  private static readonly FOG_COLOR = new THREE.Color(0x5a9fdf);      // フォグ色（地平線と合わせる）
 
   constructor() {
     this.skyDome = this.createSkyDome();
@@ -28,12 +33,15 @@ export class Sky {
     this.group.add(this.sunSprite);
     this.group.add(this.sunGlowSprite);
 
+    this.stars = this.createStars();
+    this.group.add(this.stars);
+
     this.createClouds();
   }
 
   /** 空のグラデーションドームを作成 */
   private createSkyDome(): THREE.Mesh {
-    const geo = new THREE.SphereGeometry(600, 32, 16);
+    const geo = new THREE.SphereGeometry(450, 32, 16);
     const mat = new THREE.ShaderMaterial({
       uniforms: {
         uZenithColor: { value: Sky.ZENITH_COLOR },
@@ -51,11 +59,10 @@ export class Sky {
         uniform vec3 uHorizonColor;
         varying vec3 vWorldPos;
         void main() {
-          // 正規化した高さ (0=地平線, 1=天頂)
+          // 正規化した高さ (-1=真下, 0=地平線, 1=天頂)
           float h = normalize(vWorldPos).y;
-          h = clamp(h, 0.0, 1.0);
-          // べき乗で地平線付近を広く明るくする
-          float t = pow(h, 0.6);
+          // 地平線より下も緩やかにブレンド（-0.1〜0.8 の範囲で遷移）
+          float t = smoothstep(-0.1, 0.8, h);
           vec3 color = mix(uHorizonColor, uZenithColor, t);
           gl_FragColor = vec4(color, 1.0);
         }
@@ -93,7 +100,7 @@ export class Sky {
       blending: THREE.AdditiveBlending,
     });
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(30, 30, 1);
+    sprite.scale.set(50, 50, 1);
     sprite.renderOrder = 0;
     return sprite;
   }
@@ -106,8 +113,8 @@ export class Sky {
     const ctx = canvas.getContext('2d')!;
 
     const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gradient.addColorStop(0, 'rgba(255, 255, 200, 0.3)');
-    gradient.addColorStop(0.3, 'rgba(255, 230, 150, 0.15)');
+    gradient.addColorStop(0, 'rgba(255, 255, 200, 0.25)');
+    gradient.addColorStop(0.3, 'rgba(255, 230, 150, 0.1)');
     gradient.addColorStop(1, 'rgba(255, 200, 100, 0.0)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 128, 128);
@@ -123,6 +130,42 @@ export class Sky {
     sprite.scale.set(80, 80, 1);
     sprite.renderOrder = 0;
     return sprite;
+  }
+
+  /** 星を生成（スカイドーム上半球にランダム配置） */
+  private createStars(): THREE.Points {
+    const count = 300;
+    const positions = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
+    const radius = 420;
+
+    for (let i = 0; i < count; i++) {
+      // 上半球にランダム配置
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(Math.random() * 0.85 + 0.15); // 地平線付近を避ける
+      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = radius * Math.cos(phi);
+      positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+      sizes[i] = 1.0 + Math.random() * 2.0;
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+
+    const mat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 1.5,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const points = new THREE.Points(geo, mat);
+    points.renderOrder = 0;
+    return points;
   }
 
   /** 雲を生成 */
@@ -224,16 +267,232 @@ export class Sky {
     return Sky.FOG_COLOR.clone();
   }
 
+  /** 太陽の方向を返す（DirectionalLight連動用） */
+  getSunDirection(): THREE.Vector3 {
+    return this.sunDirection.clone();
+  }
+
+  /** 時刻に応じた太陽光の色を返す */
+  getSunColor(): THREE.Color {
+    const t = this.timeOfDay;
+    const sunHeight = this.sunDirection.y;
+
+    if (sunHeight < -0.3) {
+      // 完全な夜
+      return new THREE.Color(0x1a1a3a);
+    }
+    if (sunHeight < -0.05) {
+      // 薄暮: 暗い暖色→夜色へ徐々に遷移
+      const f = (sunHeight + 0.3) / 0.25; // 0=完全夜, 1=地平線付近
+      return new THREE.Color().lerpColors(
+        new THREE.Color(0x1a1a3a),
+        new THREE.Color(0xddaa55),
+        f,
+      );
+    }
+
+    // 地平線付近（日の出・日没）: 0〜0.3 あたり
+    if (sunHeight < 0.3) {
+      const f = sunHeight / 0.3; // 0=地平線, 1=十分上
+      if (t < 0.25) {
+        // 朝: 黄色→暖かい白
+        return new THREE.Color().lerpColors(
+          new THREE.Color(0xffcc50), // 日の出の黄色
+          new THREE.Color(0xfff5e0), // 朝の暖かい白
+          f,
+        );
+      } else {
+        // 夕方: 黄オレンジ→暖かい白
+        return new THREE.Color().lerpColors(
+          new THREE.Color(0xffbb44), // 夕焼けの黄オレンジ
+          new THREE.Color(0xfff5e0), // 午後の暖かい白
+          f,
+        );
+      }
+    }
+
+    // 昼間
+    return new THREE.Color(0xffffff);
+  }
+
+  /** 時刻に応じた太陽光の強度を返す */
+  getSunIntensity(): number {
+    const sunHeight = this.sunDirection.y;
+    if (sunHeight < -0.3) return 0.0;
+    if (sunHeight < -0.05) return 0.2 * ((sunHeight + 0.3) / 0.25);
+    if (sunHeight < 0.3) return 0.2 + (sunHeight / 0.3) * 0.8;
+    return 1.0;
+  }
+
+  /** 時刻に応じたアンビエントライトの強度を返す */
+  getAmbientIntensity(): number {
+    const sunHeight = this.sunDirection.y;
+    if (sunHeight < -0.3) return 0.08;
+    if (sunHeight < -0.05) return 0.08 + 0.12 * ((sunHeight + 0.3) / 0.25);
+    if (sunHeight < 0.3) return 0.2 + (sunHeight / 0.3) * 0.2;
+    return 0.4;
+  }
+
+  /** 時刻に応じたアンビエントライトの色を返す */
+  getAmbientColor(): THREE.Color {
+    const sunHeight = this.sunDirection.y;
+    if (sunHeight < -0.3) {
+      // 完全な夜
+      return new THREE.Color(0x303050);
+    }
+    if (sunHeight < -0.05) {
+      // 薄暮: 暖色→夜色へ徐々に遷移
+      const f = (sunHeight + 0.3) / 0.25;
+      return new THREE.Color().lerpColors(
+        new THREE.Color(0x303050),
+        new THREE.Color(0xddbb77),
+        f,
+      );
+    }
+    if (sunHeight < 0.3) {
+      const f = sunHeight / 0.3;
+      // 朝夕: 黄色みのある暖かい環境光
+      return new THREE.Color().lerpColors(
+        new THREE.Color(0xffdd88), // 暖かい黄色
+        new THREE.Color(0xffffff),
+        f,
+      );
+    }
+    return new THREE.Color(0xffffff);
+  }
+
+  /** 時刻に応じた雲の色を返す */
+  private getCloudColor(): THREE.Color {
+    const sunHeight = this.sunDirection.y;
+    if (sunHeight < -0.3) {
+      // 完全な夜: 暗い灰色
+      return new THREE.Color(0x151520);
+    }
+    if (sunHeight < -0.05) {
+      // 薄暮: 暗い暖色
+      const f = (sunHeight + 0.3) / 0.25;
+      return new THREE.Color().lerpColors(
+        new THREE.Color(0x151520),
+        new THREE.Color(0xaa7744),
+        f,
+      );
+    }
+    if (sunHeight < 0.3) {
+      const f = sunHeight / 0.3;
+      if (this.timeOfDay < 0.25) {
+        // 朝: 黄色がかった雲
+        return new THREE.Color().lerpColors(
+          new THREE.Color(0xffdd88),
+          new THREE.Color(0xffffff),
+          f,
+        );
+      } else {
+        // 夕方: オレンジ黄色がかった雲
+        return new THREE.Color().lerpColors(
+          new THREE.Color(0xffcc77),
+          new THREE.Color(0xffffff),
+          f,
+        );
+      }
+    }
+    // 昼: 白
+    return new THREE.Color(0xffffff);
+  }
+
+  /** 時刻に応じた雲の透明度係数を返す */
+  private getCloudOpacity(): number {
+    const sunHeight = this.sunDirection.y;
+    if (sunHeight < -0.3) return 0.15;
+    if (sunHeight < -0.05) return 0.15 + 0.55 * ((sunHeight + 0.3) / 0.25);
+    if (sunHeight < 0.3) return 0.7 + (sunHeight / 0.3) * 0.3;
+    return 1.0;
+  }
+
   /** 毎フレーム呼ばれる更新 */
   update(camera: THREE.Camera, _dt: number): void {
+    // 時刻を進める
+    this.timeOfDay += _dt / Sky.DAY_DURATION;
+    if (this.timeOfDay >= 1) this.timeOfDay -= 1;
+
+    // 太陽の方向を時刻から計算
+    // 0=日の出(東)、0.25=正午(真上)、0.5=日没(西)、0.5〜1=夜
+    const angle = this.timeOfDay * Math.PI * 2;
+    this.sunDirection.set(Math.cos(angle), Math.sin(angle), 0.3).normalize();
+
+    // スカイドームの色を時刻に応じて更新
+    const skyMat = this.skyDome.material as THREE.ShaderMaterial;
+    const sunHeight = this.sunDirection.y;
+    if (sunHeight < -0.3) {
+      // 完全な夜空
+      skyMat.uniforms.uZenithColor.value.set(0x0a0a2a);
+      skyMat.uniforms.uHorizonColor.value.set(0x151530);
+    } else if (sunHeight < -0.05) {
+      // 薄暮: 夜空と地平線の暖色がゆるやかに遷移
+      const f = (sunHeight + 0.3) / 0.25; // 0=完全夜, 1=地平線付近
+      skyMat.uniforms.uZenithColor.value.lerpColors(
+        new THREE.Color(0x0a0a2a), new THREE.Color(0x1a2050), f,
+      );
+      skyMat.uniforms.uHorizonColor.value.lerpColors(
+        new THREE.Color(0x151530), new THREE.Color(0xcc9944), f,
+      );
+    } else if (sunHeight < 0.3) {
+      const f = sunHeight / 0.3;
+      if (this.timeOfDay < 0.25) {
+        // 朝焼け: 黄色い地平線 → 通常の青空
+        skyMat.uniforms.uHorizonColor.value.lerpColors(
+          new THREE.Color(0xffcc55), new THREE.Color(0x5a9fdf), f,
+        );
+        skyMat.uniforms.uZenithColor.value.lerpColors(
+          new THREE.Color(0x2a3060), new THREE.Color(0x4a90d9), f,
+        );
+      } else {
+        // 夕焼け: 黄オレンジ地平線 → 通常の青空
+        skyMat.uniforms.uHorizonColor.value.lerpColors(
+          new THREE.Color(0xffbb50), new THREE.Color(0x5a9fdf), f,
+        );
+        skyMat.uniforms.uZenithColor.value.lerpColors(
+          new THREE.Color(0x252050), new THREE.Color(0x4a90d9), f,
+        );
+      }
+    } else {
+      // 昼間: 通常色
+      skyMat.uniforms.uZenithColor.value.copy(Sky.ZENITH_COLOR);
+      skyMat.uniforms.uHorizonColor.value.copy(Sky.HORIZON_COLOR);
+    }
+
     // スカイドームをカメラに追従
     this.skyDome.position.copy(camera.position);
 
+    // 星の表示（夜のみ）
+    this.stars.position.copy(camera.position);
+    const starsMat = this.stars.material as THREE.PointsMaterial;
+    if (sunHeight < -0.3) {
+      starsMat.opacity = 0.9;
+    } else if (sunHeight < -0.05) {
+      starsMat.opacity = 0.9 * (1 - (sunHeight + 0.3) / 0.25);
+    } else {
+      starsMat.opacity = 0;
+    }
+
+    // 太陽が地平線より上のときのみ表示
+    const sunVisible = this.sunDirection.y > -0.05;
+    this.sunSprite.visible = sunVisible;
+    this.sunGlowSprite.visible = sunVisible;
+
     // 太陽をカメラからの相対位置に配置
-    const sunPos = this.sunDirection.clone().multiplyScalar(500);
+    const sunPos = this.sunDirection.clone().multiplyScalar(400);
     sunPos.add(camera.position);
     this.sunSprite.position.copy(sunPos);
     this.sunGlowSprite.position.copy(sunPos);
+
+    // 雲の色を時刻に応じて更新
+    const cloudColor = this.getCloudColor();
+    const cloudOpacity = this.getCloudOpacity();
+    for (const cloud of this.clouds) {
+      const mat = cloud.material as THREE.MeshBasicMaterial;
+      mat.color.copy(cloudColor);
+      mat.opacity = cloudOpacity * (0.7 + (mat.opacity > 0.85 ? 0.2 : 0));
+    }
 
     // 雲をゆっくりスクロール（風）
     const windSpeed = 2.0; // units/sec
@@ -255,6 +514,8 @@ export class Sky {
     (this.sunSprite.material as THREE.SpriteMaterial).dispose();
     (this.sunGlowSprite.material as THREE.SpriteMaterial).map?.dispose();
     (this.sunGlowSprite.material as THREE.SpriteMaterial).dispose();
+    this.stars.geometry.dispose();
+    (this.stars.material as THREE.PointsMaterial).dispose();
     for (const cloud of this.clouds) {
       cloud.geometry.dispose();
       (cloud.material as THREE.MeshBasicMaterial).map?.dispose();

@@ -27,6 +27,9 @@ export class HUD {
   readonly pauseMenu: PauseMenu;
   readonly inventory: Inventory;
 
+  // 時刻表示
+  private timeDisplay: HTMLDivElement;
+
   // タッチ用ボタン
   readonly menuButton: HTMLButtonElement;
   readonly jumpButton: HTMLButtonElement;
@@ -85,6 +88,7 @@ export class HUD {
       this._onInventory?.();
     });
 
+    this.timeDisplay = this.createTimeDisplay();
     this.createHelpHint();
   }
 
@@ -143,6 +147,33 @@ export class HUD {
     el.appendChild(h);
     el.appendChild(v);
     document.body.appendChild(el);
+  }
+
+  /** 時刻表示を更新（timeOfDay: 0〜1） */
+  updateTime(timeOfDay: number): void {
+    // 0=6:00(日の出), 0.25=12:00(正午), 0.5=18:00(日没), 0.75=0:00(深夜)
+    const hours = Math.floor((timeOfDay * 24 + 6) % 24);
+    const minutes = Math.floor(((timeOfDay * 24 + 6) % 1) * 60);
+    this.timeDisplay.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  }
+
+  private createTimeDisplay(): HTMLDivElement {
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position: fixed;
+      top: 54px;
+      right: 16px;
+      color: rgba(255,255,255,0.8);
+      font-size: 14px;
+      font-family: monospace;
+      font-weight: bold;
+      pointer-events: none;
+      z-index: 20;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+    `;
+    el.textContent = '12:00';
+    document.body.appendChild(el);
+    return el;
   }
 
   private createHelpHint(): void {

@@ -12,6 +12,7 @@ async function main() {
   const physicsWorld = new RAPIER.World(gravity);
 
   const game = new Game(canvas, physicsWorld);
+  (window as any).__game = game;
   game.start();
 }
 

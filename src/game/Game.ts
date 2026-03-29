@@ -19,8 +19,10 @@ export class Game {
   private hud: HUD;
   private clock = new THREE.Clock();
   private highlight: THREE.LineSegments;
-  private sky: Sky;
+  sky: Sky;
   private particles: ParticleSystem;
+  private sunLight: THREE.DirectionalLight;
+  private ambientLight: THREE.AmbientLight;
   private paused = false;
   private elapsedTime = 0;
 
@@ -32,6 +34,8 @@ export class Game {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     // シーン
     this.scene = new THREE.Scene();
 
@@ -40,15 +44,27 @@ export class Game {
     this.scene.add(this.sky.group);
 
     // フォグ（スカイドームの地平線色と合わせる）
-    this.scene.fog = new THREE.Fog(this.sky.fogColor, 60, 200);
+    this.scene.fog = new THREE.Fog(this.sky.fogColor, 50, 150);
     this.renderer.setClearColor(this.sky.fogColor);
 
     // ライト
-    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-    this.scene.add(ambient);
-    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-    sun.position.set(50, 100, 30);
-    this.scene.add(sun);
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    this.scene.add(this.ambientLight);
+    this.sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    this.sunLight.position.set(50, 100, 30);
+    this.sunLight.castShadow = true;
+    this.sunLight.shadow.mapSize.width = 2048;
+    this.sunLight.shadow.mapSize.height = 2048;
+    this.sunLight.shadow.camera.near = 0.5;
+    this.sunLight.shadow.camera.far = 200;
+    this.sunLight.shadow.camera.left = -60;
+    this.sunLight.shadow.camera.right = 60;
+    this.sunLight.shadow.camera.top = 60;
+    this.sunLight.shadow.camera.bottom = -60;
+    this.sunLight.shadow.bias = -0.0003;
+    this.sunLight.shadow.normalBias = 0.02;
+    this.scene.add(this.sunLight);
+    this.scene.add(this.sunLight.target);
 
     // 入力
     this.input = new InputManager(canvas);
@@ -328,8 +344,21 @@ export class Game {
     // 水面アニメーション
     updateWaterTime(this.elapsedTime);
 
-    // 空の更新（一時停止中も雲は動かす）
+    // 空の更新（一時停止中も雲は動かす、太陽も動かす）
     this.sky.update(this.player.camera, dt);
+
+    // ライトを太陽と連動（プレイヤー付近にシャドウカメラを配置）
+    const sunDir = this.sky.getSunDirection();
+    const playerPos = this.player.camera.position;
+    this.sunLight.position.copy(playerPos).add(sunDir.multiplyScalar(100));
+    this.sunLight.target.position.copy(playerPos);
+    this.sunLight.color.copy(this.sky.getSunColor());
+    this.sunLight.intensity = this.sky.getSunIntensity();
+    this.ambientLight.color.copy(this.sky.getAmbientColor());
+    this.ambientLight.intensity = this.sky.getAmbientIntensity();
+
+    // 時刻表示更新
+    this.hud.updateTime(this.sky.timeOfDay);
 
     // 視錐台カリング
     this.world.updateVisibility(this.player.camera);
