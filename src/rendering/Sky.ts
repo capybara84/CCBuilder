@@ -17,6 +17,7 @@ export class Sky {
   private sunGlowSprite: THREE.Sprite;
   private clouds: THREE.Mesh[] = [];
   private skyDome: THREE.Mesh;
+  private stars: THREE.Points;
 
   // 色定義
   private static readonly ZENITH_COLOR = new THREE.Color(0x4a90d9);   // 天頂: 青
@@ -31,6 +32,9 @@ export class Sky {
     this.sunGlowSprite = this.createSunGlow();
     this.group.add(this.sunSprite);
     this.group.add(this.sunGlowSprite);
+
+    this.stars = this.createStars();
+    this.group.add(this.stars);
 
     this.createClouds();
   }
@@ -126,6 +130,42 @@ export class Sky {
     sprite.scale.set(80, 80, 1);
     sprite.renderOrder = 0;
     return sprite;
+  }
+
+  /** 星を生成（スカイドーム上半球にランダム配置） */
+  private createStars(): THREE.Points {
+    const count = 300;
+    const positions = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
+    const radius = 420;
+
+    for (let i = 0; i < count; i++) {
+      // 上半球にランダム配置
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(Math.random() * 0.85 + 0.15); // 地平線付近を避ける
+      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = radius * Math.cos(phi);
+      positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+      sizes[i] = 1.0 + Math.random() * 2.0;
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+
+    const mat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 1.5,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const points = new THREE.Points(geo, mat);
+    points.renderOrder = 0;
+    return points;
   }
 
   /** 雲を生成 */
@@ -279,18 +319,18 @@ export class Sky {
   getSunIntensity(): number {
     const sunHeight = this.sunDirection.y;
     if (sunHeight < -0.3) return 0.0;
-    if (sunHeight < -0.05) return 0.15 * ((sunHeight + 0.3) / 0.25);
-    if (sunHeight < 0.3) return 0.15 + (sunHeight / 0.3) * 0.65;
-    return 0.8;
+    if (sunHeight < -0.05) return 0.2 * ((sunHeight + 0.3) / 0.25);
+    if (sunHeight < 0.3) return 0.2 + (sunHeight / 0.3) * 0.8;
+    return 1.0;
   }
 
   /** 時刻に応じたアンビエントライトの強度を返す */
   getAmbientIntensity(): number {
     const sunHeight = this.sunDirection.y;
-    if (sunHeight < -0.3) return 0.1;
-    if (sunHeight < -0.05) return 0.1 + 0.15 * ((sunHeight + 0.3) / 0.25);
-    if (sunHeight < 0.3) return 0.25 + (sunHeight / 0.3) * 0.35;
-    return 0.6;
+    if (sunHeight < -0.3) return 0.08;
+    if (sunHeight < -0.05) return 0.08 + 0.12 * ((sunHeight + 0.3) / 0.25);
+    if (sunHeight < 0.3) return 0.2 + (sunHeight / 0.3) * 0.2;
+    return 0.4;
   }
 
   /** 時刻に応じたアンビエントライトの色を返す */
@@ -423,6 +463,17 @@ export class Sky {
     // スカイドームをカメラに追従
     this.skyDome.position.copy(camera.position);
 
+    // 星の表示（夜のみ）
+    this.stars.position.copy(camera.position);
+    const starsMat = this.stars.material as THREE.PointsMaterial;
+    if (sunHeight < -0.3) {
+      starsMat.opacity = 0.9;
+    } else if (sunHeight < -0.05) {
+      starsMat.opacity = 0.9 * (1 - (sunHeight + 0.3) / 0.25);
+    } else {
+      starsMat.opacity = 0;
+    }
+
     // 太陽が地平線より上のときのみ表示
     const sunVisible = this.sunDirection.y > -0.05;
     this.sunSprite.visible = sunVisible;
@@ -463,6 +514,8 @@ export class Sky {
     (this.sunSprite.material as THREE.SpriteMaterial).dispose();
     (this.sunGlowSprite.material as THREE.SpriteMaterial).map?.dispose();
     (this.sunGlowSprite.material as THREE.SpriteMaterial).dispose();
+    this.stars.geometry.dispose();
+    (this.stars.material as THREE.PointsMaterial).dispose();
     for (const cloud of this.clouds) {
       cloud.geometry.dispose();
       (cloud.material as THREE.MeshBasicMaterial).map?.dispose();

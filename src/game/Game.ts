@@ -34,6 +34,8 @@ export class Game {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     // シーン
     this.scene = new THREE.Scene();
 
@@ -50,7 +52,19 @@ export class Game {
     this.scene.add(this.ambientLight);
     this.sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
     this.sunLight.position.set(50, 100, 30);
+    this.sunLight.castShadow = true;
+    this.sunLight.shadow.mapSize.width = 2048;
+    this.sunLight.shadow.mapSize.height = 2048;
+    this.sunLight.shadow.camera.near = 0.5;
+    this.sunLight.shadow.camera.far = 200;
+    this.sunLight.shadow.camera.left = -60;
+    this.sunLight.shadow.camera.right = 60;
+    this.sunLight.shadow.camera.top = 60;
+    this.sunLight.shadow.camera.bottom = -60;
+    this.sunLight.shadow.bias = -0.0003;
+    this.sunLight.shadow.normalBias = 0.02;
     this.scene.add(this.sunLight);
+    this.scene.add(this.sunLight.target);
 
     // 入力
     this.input = new InputManager(canvas);
@@ -333,9 +347,11 @@ export class Game {
     // 空の更新（一時停止中も雲は動かす、太陽も動かす）
     this.sky.update(this.player.camera, dt);
 
-    // ライトを太陽と連動
+    // ライトを太陽と連動（プレイヤー付近にシャドウカメラを配置）
     const sunDir = this.sky.getSunDirection();
-    this.sunLight.position.copy(sunDir.multiplyScalar(100));
+    const playerPos = this.player.camera.position;
+    this.sunLight.position.copy(playerPos).add(sunDir.multiplyScalar(100));
+    this.sunLight.target.position.copy(playerPos);
     this.sunLight.color.copy(this.sky.getSunColor());
     this.sunLight.intensity = this.sky.getSunIntensity();
     this.ambientLight.color.copy(this.sky.getAmbientColor());

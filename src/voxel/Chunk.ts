@@ -219,6 +219,8 @@ export class Chunk {
     oGeo.setIndex(oIdx);
     const opaqueMesh = new THREE.Mesh(oGeo, getSharedMaterial());
     opaqueMesh.position.set(worldX, worldY, worldZ);
+    opaqueMesh.castShadow = true;
+    opaqueMesh.receiveShadow = true;
 
     // 半透明メッシュ（Glass, Leaves）
     this.disposeTransparent();
@@ -230,6 +232,7 @@ export class Chunk {
       tGeo.setIndex(tIdx);
       const transMesh = new THREE.Mesh(tGeo, getSharedTransparentMaterial());
       transMesh.position.set(worldX, worldY, worldZ);
+      transMesh.receiveShadow = true;
       transMesh.renderOrder = 1;
       this.transparentMesh = transMesh;
     } else {
@@ -246,6 +249,7 @@ export class Chunk {
       wGeo.setIndex(wIdx);
       const waterMesh = new THREE.Mesh(wGeo, getSharedWaterMaterial());
       waterMesh.position.set(worldX, worldY, worldZ);
+      waterMesh.receiveShadow = true;
       waterMesh.renderOrder = 2;
       this.waterMesh = waterMesh;
     } else {
