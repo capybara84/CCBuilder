@@ -137,6 +137,8 @@ export class Chunk {
 
   private shouldRenderFace(blockId: number, neighborId: number): boolean {
     if (neighborId === BlockTypes.AIR) return true;
+    // 隣がフルキューブでない場合は常に描画（松明の横など）
+    if (!BlockTypes.isFullCube(neighborId)) return true;
     if (!BlockTypes.isTransparent(blockId) && BlockTypes.isTransparent(neighborId)) return true;
     if (BlockTypes.isTransparent(blockId) && neighborId !== blockId) return true;
     return false;
@@ -177,26 +179,96 @@ export class Chunk {
             pos = oPos; nor = oNor; uv = oUvs; idx = oIdx; vert = oVert;
           }
 
-          for (const face of FACES) {
-            // 水ブロックは上面のみ描画（側面/底面はちらつき防止のため省略）
-            if (isWater && face.faceType !== 'top') continue;
+          const shape = BlockTypes.getShape(blockId);
 
-            const nx = x + face.dir[0];
-            const ny = y + face.dir[1];
-            const nz = z + face.dir[2];
-            const neighborId = this.getBlock(nx, ny, nz);
+          if (shape.isFullCube) {
+            // フルキューブ: 既存の高速パス
+            for (const face of FACES) {
+              if (isWater && face.faceType !== 'top') continue;
 
-            if (this.shouldRenderFace(blockId, neighborId)) {
-              const [col, row] = blockUV[face.faceType];
-              const [u0, v0, u1, v1] = atlas.getUVRect(col, row);
+              const nx = x + face.dir[0];
+              const ny = y + face.dir[1];
+              const nz = z + face.dir[2];
+              const neighborId = this.getBlock(nx, ny, nz);
 
-              for (const v of face.verts) {
-                pos.push(v[0] + x, v[1] + y, v[2] + z);
-                nor.push(face.normal[0], face.normal[1], face.normal[2]);
+              if (this.shouldRenderFace(blockId, neighborId)) {
+                const [col, row] = blockUV[face.faceType];
+                const [u0, v0, u1, v1] = atlas.getUVRect(col, row);
+
+                for (const v of face.verts) {
+                  pos.push(v[0] + x, v[1] + y, v[2] + z);
+                  nor.push(face.normal[0], face.normal[1], face.normal[2]);
+                }
+                uv.push(u0, v0, u1, v0, u1, v1, u0, v1);
+                idx.push(vert, vert + 1, vert + 2, vert, vert + 2, vert + 3);
+                vert += 4;
               }
-              uv.push(u0, v0, u1, v0, u1, v1, u0, v1);
-              idx.push(vert, vert + 1, vert + 2, vert, vert + 2, vert + 3);
-              vert += 4;
+            }
+          } else {
+            // カスタム形状: ボックスごとに面を生成
+            for (const box of shape.boxes) {
+              const x0 = box.min[0] / 16, y0 = box.min[1] / 16, z0 = box.min[2] / 16;
+              const x1 = box.max[0] / 16, y1 = box.max[1] / 16, z1 = box.max[2] / 16;
+
+              // 各面の頂点定義: [v0,v1,v2,v3], normal, faceType, isBoundary(ブロック端に接するか)
+              const boxFaces: { verts: number[][]; normal: number[]; faceType: FaceType; dirIdx: number; onBoundary: boolean }[] = [
+                { verts: [[x1,y0,z1],[x1,y0,z0],[x1,y1,z0],[x1,y1,z1]], normal: [1,0,0], faceType: 'side', dirIdx: 0, onBoundary: box.max[0] === 16 },
+                { verts: [[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0]], normal: [-1,0,0], faceType: 'side', dirIdx: 1, onBoundary: box.min[0] === 0 },
+                { verts: [[x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0]], normal: [0,1,0], faceType: 'top', dirIdx: 2, onBoundary: box.max[1] === 16 },
+                { verts: [[x0,y0,z1],[x0,y0,z0],[x1,y0,z0],[x1,y0,z1]], normal: [0,-1,0], faceType: 'bottom', dirIdx: 3, onBoundary: box.min[1] === 0 },
+                { verts: [[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]], normal: [0,0,1], faceType: 'side', dirIdx: 4, onBoundary: box.max[2] === 16 },
+                { verts: [[x1,y0,z0],[x0,y0,z0],[x0,y1,z0],[x1,y1,z0]], normal: [0,0,-1], faceType: 'side', dirIdx: 5, onBoundary: box.min[2] === 0 },
+              ];
+
+              for (const bf of boxFaces) {
+                // ブロック境界の面は隣接ブロックがフルキューブなら省略
+                if (bf.onBoundary) {
+                  const f = FACES[bf.dirIdx];
+                  const nx = x + f.dir[0];
+                  const ny = y + f.dir[1];
+                  const nz = z + f.dir[2];
+                  const neighborId = this.getBlock(nx, ny, nz);
+                  if (neighborId !== BlockTypes.AIR && BlockTypes.isFullCube(neighborId) && !BlockTypes.isTransparent(neighborId)) {
+                    continue;
+                  }
+                }
+
+                // テクスチャUV（ボックスのサイズに応じてテクスチャ領域を切り出し）
+                const [col, row] = blockUV[bf.faceType];
+                const [au0, av0, au1, av1] = atlas.getUVRect(col, row);
+                const uvW = au1 - au0;
+                const uvH = av1 - av0;
+
+                // 面の軸に応じたUVオフセット計算
+                let fu0: number, fv0: number, fu1: number, fv1: number;
+                if (bf.dirIdx <= 1) {
+                  // ±X面: UV軸はZ, Y
+                  fu0 = au0 + (bf.dirIdx === 0 ? (1 - z1) : z0) * uvW;
+                  fu1 = au0 + (bf.dirIdx === 0 ? (1 - z0) : z1) * uvW;
+                  fv0 = av0 + y0 * uvH;
+                  fv1 = av0 + y1 * uvH;
+                } else if (bf.dirIdx <= 3) {
+                  // ±Y面: UV軸はX, Z
+                  fu0 = au0 + x0 * uvW;
+                  fu1 = au0 + x1 * uvW;
+                  fv0 = av0 + z0 * uvH;
+                  fv1 = av0 + z1 * uvH;
+                } else {
+                  // ±Z面: UV軸はX, Y
+                  fu0 = au0 + (bf.dirIdx === 5 ? (1 - x1) : x0) * uvW;
+                  fu1 = au0 + (bf.dirIdx === 5 ? (1 - x0) : x1) * uvW;
+                  fv0 = av0 + y0 * uvH;
+                  fv1 = av0 + y1 * uvH;
+                }
+
+                for (const v of bf.verts) {
+                  pos.push(v[0] + x, v[1] + y, v[2] + z);
+                  nor.push(bf.normal[0], bf.normal[1], bf.normal[2]);
+                }
+                uv.push(fu0, fv0, fu1, fv0, fu1, fv1, fu0, fv1);
+                idx.push(vert, vert + 1, vert + 2, vert, vert + 2, vert + 3);
+                vert += 4;
+              }
             }
           }
 

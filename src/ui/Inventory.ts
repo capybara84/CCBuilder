@@ -1,8 +1,33 @@
 import { BlockTypes, BlockDef } from '../voxel/BlockTypes';
 import { getAtlas } from '../voxel/Chunk';
 
+/** カテゴリ定義 */
+interface Category {
+  name: string;
+  blockIds: number[];
+}
+
+const CATEGORIES: Category[] = [
+  {
+    name: 'すべて',
+    blockIds: BlockTypes.all().map(b => b.id),
+  },
+  {
+    name: '自然',
+    blockIds: [1, 2, 3, 19, 5, 22, 21, 20, 4, 7, 8, 9, 23, 24, 25, 10, 11, 6],
+  },
+  {
+    name: '建材',
+    blockIds: [12, 13, 26, 27, 28, 14, 15, 33, 34],
+  },
+  {
+    name: '装飾',
+    blockIds: [16, 17, 18, 29, 30, 31, 32],
+  },
+];
+
 /**
- * インベントリ画面（全ブロック一覧）
+ * インベントリ画面（カテゴリタブ付き）
  * クリックでブロックを選択、ホットバーとの両方が選択されたときに入れ替え
  */
 export class Inventory {
@@ -11,9 +36,12 @@ export class Inventory {
   private _onSelect: ((blockId: number) => void) | null = null;
   private _onClose: (() => void) | null = null;
 
+  private grid: HTMLDivElement;
   private cells: HTMLDivElement[] = [];
   private blockIds: number[] = [];
-  private _selectedBlockId = -1; // -1 = 未選択
+  private _selectedBlockId = -1;
+  private tabButtons: HTMLButtonElement[] = [];
+  private activeTab = 0;
 
   constructor() {
     this.container = document.createElement('div');
@@ -26,7 +54,7 @@ export class Inventory {
       display: none;
       justify-content: center;
       align-items: flex-start;
-      padding-top: 60px;
+      padding-top: 40px;
       z-index: 50;
       pointer-events: none;
     `;
@@ -36,8 +64,11 @@ export class Inventory {
       background: rgba(30, 30, 40, 0.95);
       border: 2px solid rgba(255, 255, 255, 0.2);
       border-radius: 8px;
-      padding: 24px;
+      padding: 20px;
       pointer-events: auto;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
     `;
 
     // タイトル
@@ -45,10 +76,10 @@ export class Inventory {
     title.textContent = 'INVENTORY';
     title.style.cssText = `
       color: white;
-      font-size: 20px;
+      font-size: 18px;
       font-weight: bold;
       text-align: center;
-      margin-bottom: 16px;
+      margin-bottom: 10px;
       letter-spacing: 3px;
     `;
     panel.appendChild(title);
@@ -58,38 +89,53 @@ export class Inventory {
     hint.textContent = 'Select a block, then click a hotbar slot';
     hint.style.cssText = `
       color: #aaa;
-      font-size: 12px;
+      font-size: 11px;
       text-align: center;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     `;
     panel.appendChild(hint);
 
-    // ブロックグリッド（6列）
-    const grid = document.createElement('div');
-    grid.style.cssText = `
+    // カテゴリタブ
+    const tabBar = document.createElement('div');
+    tabBar.style.cssText = `
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      justify-content: center;
+    `;
+    CATEGORIES.forEach((cat, i) => {
+      const btn = document.createElement('button');
+      btn.textContent = cat.name;
+      btn.style.cssText = this.tabStyle(i === 0);
+      btn.addEventListener('click', () => this.switchTab(i));
+      btn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.switchTab(i);
+      });
+      tabBar.appendChild(btn);
+      this.tabButtons.push(btn);
+    });
+    panel.appendChild(tabBar);
+
+    // ブロックグリッド（6列、スクロール可能）
+    this.grid = document.createElement('div');
+    this.grid.style.cssText = `
       display: grid;
       grid-template-columns: repeat(6, 1fr);
-      gap: 8px;
+      gap: 6px;
+      overflow-y: auto;
+      max-height: 50vh;
     `;
-
-    const allBlocks = BlockTypes.all();
-    for (const block of allBlocks) {
-      const cell = this.createBlockCell(block);
-      grid.appendChild(cell);
-      this.cells.push(cell);
-      this.blockIds.push(block.id);
-    }
-
-    panel.appendChild(grid);
+    panel.appendChild(this.grid);
 
     // 閉じるボタン
     const closeBtn = document.createElement('button');
     closeBtn.textContent = 'Close (E / ESC)';
     closeBtn.style.cssText = `
       display: block;
-      margin: 16px auto 0;
+      margin: 12px auto 0;
       padding: 8px 24px;
-      font-size: 14px;
+      font-size: 13px;
       color: white;
       background: rgba(80, 80, 100, 0.8);
       border: 1px solid rgba(255, 255, 255, 0.2);
@@ -105,6 +151,33 @@ export class Inventory {
 
     this.container.appendChild(panel);
     document.body.appendChild(this.container);
+
+    // 初期タブを描画
+    this.renderGrid(CATEGORIES[0].blockIds);
+  }
+
+  private switchTab(index: number): void {
+    this.activeTab = index;
+    this.tabButtons.forEach((btn, i) => {
+      btn.style.cssText = this.tabStyle(i === index);
+    });
+    this._selectedBlockId = -1;
+    this.renderGrid(CATEGORIES[index].blockIds);
+  }
+
+  private renderGrid(ids: number[]): void {
+    this.grid.innerHTML = '';
+    this.cells = [];
+    this.blockIds = [];
+
+    for (const id of ids) {
+      const block = BlockTypes.get(id);
+      if (!block) continue;
+      const cell = this.createBlockCell(block);
+      this.grid.appendChild(cell);
+      this.cells.push(cell);
+      this.blockIds.push(block.id);
+    }
   }
 
   private createBlockCell(block: BlockDef): HTMLDivElement {
@@ -118,7 +191,7 @@ export class Inventory {
     swatch.style.cssText = `
       width: 40px; height: 40px;
       border-radius: 3px;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
       image-rendering: pixelated;
     `;
 
@@ -135,10 +208,13 @@ export class Inventory {
     const label = document.createElement('div');
     label.textContent = block.name;
     label.style.cssText = `
-      font-size: 10px;
+      font-size: 9px;
       color: #ccc;
       text-align: center;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 56px;
     `;
 
     cell.appendChild(swatch);
@@ -177,12 +253,27 @@ export class Inventory {
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 8px;
+      padding: 6px;
       border-radius: 4px;
       cursor: pointer;
       background: ${active ? 'rgba(80, 120, 180, 0.7)' : 'rgba(60, 60, 80, 0.6)'};
       border: 2px solid ${active ? 'white' : 'transparent'};
       transition: border-color 0.1s, background 0.1s;
+    `;
+  }
+
+  private tabStyle(active: boolean): string {
+    return `
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: bold;
+      color: ${active ? 'white' : '#999'};
+      background: ${active ? 'rgba(80, 120, 180, 0.7)' : 'rgba(50, 50, 60, 0.6)'};
+      border: 1px solid ${active ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)'};
+      border-radius: 4px;
+      cursor: pointer;
+      outline: none;
+      font-family: sans-serif;
     `;
   }
 

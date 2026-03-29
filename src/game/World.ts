@@ -17,6 +17,7 @@ export class World {
   readonly group = new THREE.Group();
   // ブロック座標 → コライダーハンドルのマップ（地面以外の設置ブロック用）
   private blockColliders = new Map<string, { body: RAPIER.RigidBody; collider: RAPIER.Collider }>();
+  private torchLights = new Map<string, THREE.PointLight>();
   private frustum = new THREE.Frustum();
   private projScreenMatrix = new THREE.Matrix4();
 
@@ -174,6 +175,24 @@ export class World {
       const colliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
       const collider = this.physicsWorld.createCollider(colliderDesc, body);
       this.blockColliders.set(key, { body, collider });
+    }
+
+    // 松明ライト管理
+    if (oldId === BlockTypes.TORCH && id !== BlockTypes.TORCH) {
+      // 松明が破壊された → ライト削除
+      const light = this.torchLights.get(key);
+      if (light) {
+        this.group.remove(light);
+        light.dispose();
+        this.torchLights.delete(key);
+      }
+    }
+    if (id === BlockTypes.TORCH && oldId !== BlockTypes.TORCH) {
+      // 松明が設置された → PointLight作成
+      const light = new THREE.PointLight(0xffaa44, 1.5, 12, 1);
+      light.position.set(wx + 0.5, wy + 0.8, wz + 0.5);
+      this.group.add(light);
+      this.torchLights.set(key, light);
     }
 
     // 境界ブロックの場合は隣接チャンクも再構築

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BlockShape, createFullCubeShape, createShapeFromBoxes } from './BlockShape';
 
 export interface BlockDef {
   id: number;
@@ -6,6 +7,7 @@ export interface BlockDef {
   color: THREE.Color;
   breakable: boolean;
   transparent: boolean; // 半透明ブロック（Glass, Leaves など）
+  shape?: BlockShape;   // カスタム形状（省略時はフルキューブ）
 }
 
 // ブロック定義
@@ -31,6 +33,26 @@ const defs: BlockDef[] = [
   { id: 16, name: 'Wool White', color: new THREE.Color(0xf0f0f0), breakable: true, transparent: false },
   { id: 17, name: 'Wool Red', color: new THREE.Color(0xcc3333), breakable: true, transparent: false },
   { id: 18, name: 'Wool Blue', color: new THREE.Color(0x3355cc), breakable: true, transparent: false },
+  // 自然物系（追加）
+  { id: 19, name: 'Cobblestone', color: new THREE.Color(0x777777), breakable: true, transparent: false },
+  { id: 20, name: 'Clay', color: new THREE.Color(0xb0a090), breakable: true, transparent: false },
+  { id: 21, name: 'Gravel', color: new THREE.Color(0x888070), breakable: true, transparent: false },
+  { id: 22, name: 'Sandstone', color: new THREE.Color(0xd4b96a), breakable: true, transparent: false },
+  { id: 23, name: 'Cactus', color: new THREE.Color(0x2d7a2d), breakable: true, transparent: false },
+  { id: 24, name: 'Mushroom', color: new THREE.Color(0x8b4513), breakable: true, transparent: false },
+  { id: 25, name: 'Pumpkin', color: new THREE.Color(0xe88020), breakable: true, transparent: false },
+  // 建築材系（追加）
+  { id: 26, name: 'Concrete', color: new THREE.Color(0xcccccc), breakable: true, transparent: false },
+  { id: 27, name: 'Tile', color: new THREE.Color(0xe0d0b0), breakable: true, transparent: false },
+  { id: 28, name: 'Iron', color: new THREE.Color(0xc8c8d0), breakable: true, transparent: false },
+  { id: 29, name: 'Wool Yellow', color: new THREE.Color(0xddcc33), breakable: true, transparent: false },
+  { id: 30, name: 'Wool Green', color: new THREE.Color(0x33aa33), breakable: true, transparent: false },
+  { id: 31, name: 'Wool Orange', color: new THREE.Color(0xdd8833), breakable: true, transparent: false },
+  { id: 32, name: 'Wool Black', color: new THREE.Color(0x222222), breakable: true, transparent: false },
+  { id: 33, name: 'Bookshelf', color: new THREE.Color(0x8b6914), breakable: true, transparent: false },
+  // 光源
+  { id: 34, name: 'Torch', color: new THREE.Color(0xff8c00), breakable: true, transparent: true,
+    shape: createShapeFromBoxes([{ min: [7, 0, 7], max: [9, 10, 9] }]) },
 ];
 
 const byId = new Map<number, BlockDef>();
@@ -56,6 +78,22 @@ export const BlockTypes = {
   WOOL_WHITE: 16,
   WOOL_RED: 17,
   WOOL_BLUE: 18,
+  COBBLESTONE: 19,
+  CLAY: 20,
+  GRAVEL: 21,
+  SANDSTONE: 22,
+  CACTUS: 23,
+  MUSHROOM: 24,
+  PUMPKIN: 25,
+  CONCRETE: 26,
+  TILE: 27,
+  IRON: 28,
+  WOOL_YELLOW: 29,
+  WOOL_GREEN: 30,
+  WOOL_ORANGE: 31,
+  WOOL_BLACK: 32,
+  BOOKSHELF: 33,
+  TORCH: 34,
   get(id: number): BlockDef | undefined {
     return byId.get(id);
   },
@@ -66,5 +104,14 @@ export const BlockTypes = {
     if (id === 0) return true; // AIR
     const def = byId.get(id);
     return def ? def.transparent : false;
+  },
+  getShape(id: number): BlockShape {
+    const def = byId.get(id);
+    return def?.shape ?? createFullCubeShape();
+  },
+  isFullCube(id: number): boolean {
+    if (id === 0) return false;
+    const def = byId.get(id);
+    return def?.shape ? def.shape.isFullCube : true;
   },
 } as const;
