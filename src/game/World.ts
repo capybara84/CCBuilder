@@ -216,6 +216,104 @@ export class World {
     }
   }
 
+  /**
+   * 複数ブロックをまとめて変更するバッチメソッド
+   * 影響チャンクを Set で収集し、全変更適用後に各チャンクを1回だけ rebuildMesh する
+   */
+  setBlockBatch(changes: { wx: number; wy: number; wz: number; id: number }[]): void {
+    // 影響するチャンクインデックスを収集するための Set
+    const dirtyChunks = new Set<number>();
+
+    for (const change of changes) {
+      const { wx, wy, wz, id } = change;
+      if (wy < 0 || wy >= MAP_H) continue;
+
+      const cx = Math.floor(wx / CHUNK_SIZE);
+      const cy = Math.floor(wy / CHUNK_SIZE);
+      const cz = Math.floor(wz / CHUNK_SIZE);
+      const chunk = this.getChunk(cx, cy, cz);
+      if (!chunk) continue;
+
+      const lx = wx - cx * CHUNK_SIZE;
+      const ly = wy - cy * CHUNK_SIZE;
+      const lz = wz - cz * CHUNK_SIZE;
+      const oldId = chunk.getBlock(lx, ly, lz);
+
+      // データを更新
+      chunk.setBlock(lx, ly, lz, id);
+      dirtyChunks.add(this.chunkIndex(cx, cy, cz));
+
+      // コライダー管理
+      const key = this.blockKey(wx, wy, wz);
+      if (oldId !== BlockTypes.AIR && id === BlockTypes.AIR) {
+        // ブロック破壊 → コライダー削除
+        const entry = this.blockColliders.get(key);
+        if (entry) {
+          this.physicsWorld.removeCollider(entry.collider, true);
+          this.physicsWorld.removeRigidBody(entry.body);
+          this.blockColliders.delete(key);
+        }
+      } else if (oldId === BlockTypes.AIR && id !== BlockTypes.AIR) {
+        // ブロック設置 → コライダー追加
+        const bodyDesc = RAPIER.RigidBodyDesc.fixed()
+          .setTranslation(wx + 0.5, wy + 0.5, wz + 0.5);
+        const body = this.physicsWorld.createRigidBody(bodyDesc);
+        const colliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
+        const collider = this.physicsWorld.createCollider(colliderDesc, body);
+        this.blockColliders.set(key, { body, collider });
+      } else if (oldId !== BlockTypes.AIR && id !== BlockTypes.AIR && oldId !== id) {
+        // ブロック種類の変更（破壊 + 設置）→ 既存コライダーはそのまま流用
+      }
+
+      // 松明ライト管理
+      if (oldId === BlockTypes.TORCH && id !== BlockTypes.TORCH) {
+        const light = this.torchLights.get(key);
+        if (light) {
+          this.group.remove(light);
+          light.dispose();
+          this.torchLights.delete(key);
+        }
+      }
+      if (id === BlockTypes.TORCH && oldId !== BlockTypes.TORCH) {
+        const light = new THREE.PointLight(0xffaa44, 1.5, 12, 1);
+        light.position.set(wx + 0.5, wy + 0.8, wz + 0.5);
+        this.group.add(light);
+        this.torchLights.set(key, light);
+      }
+
+      // 境界ブロックの場合は隣接チャンクもダーティに追加
+      if (lx === 0 && cx > 0) {
+        const neighborIdx = this.chunkIndex(cx - 1, cy, cz);
+        if (this.getChunk(cx - 1, cy, cz)) dirtyChunks.add(neighborIdx);
+      }
+      if (lx === CHUNK_SIZE - 1 && cx < CHUNKS_X - 1) {
+        const neighborIdx = this.chunkIndex(cx + 1, cy, cz);
+        if (this.getChunk(cx + 1, cy, cz)) dirtyChunks.add(neighborIdx);
+      }
+      if (ly === 0 && cy > 0) {
+        const neighborIdx = this.chunkIndex(cx, cy - 1, cz);
+        if (this.getChunk(cx, cy - 1, cz)) dirtyChunks.add(neighborIdx);
+      }
+      if (ly === CHUNK_SIZE - 1 && cy < CHUNKS_Y - 1) {
+        const neighborIdx = this.chunkIndex(cx, cy + 1, cz);
+        if (this.getChunk(cx, cy + 1, cz)) dirtyChunks.add(neighborIdx);
+      }
+      if (lz === 0 && cz > 0) {
+        const neighborIdx = this.chunkIndex(cx, cy, cz - 1);
+        if (this.getChunk(cx, cy, cz - 1)) dirtyChunks.add(neighborIdx);
+      }
+      if (lz === CHUNK_SIZE - 1 && cz < CHUNKS_Z - 1) {
+        const neighborIdx = this.chunkIndex(cx, cy, cz + 1);
+        if (this.getChunk(cx, cy, cz + 1)) dirtyChunks.add(neighborIdx);
+      }
+    }
+
+    // ダーティチャンクを1回だけ再構築
+    for (const idx of dirtyChunks) {
+      this.chunks[idx]?.rebuildMesh(this.group);
+    }
+  }
+
   /** 視錐台カリング: カメラの視野外のチャンクメッシュを非表示にする */
   updateVisibility(camera: THREE.Camera): void {
     this.projScreenMatrix.multiplyMatrices(

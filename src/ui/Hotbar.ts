@@ -24,6 +24,7 @@ export class Hotbar {
   private _selectedIndex = 0;
   private _onChange: ((blockId: number) => void) | null = null;
   private _onSlotClick: ((index: number) => void) | null = null;
+  private _onInventory: (() => void) | null = null;
 
   constructor() {
     const container = document.createElement('div');
@@ -76,8 +77,70 @@ export class Hotbar {
       this.labels.push(label);
     }
 
+    // インベントリスロット（ホットバー末尾に追加）
+    const invSlot = document.createElement('div');
+    invSlot.style.cssText = this.slotStyle(false);
+    invSlot.title = 'Inventory (E)';
+
+    // バッグアイコンをキャンバスで描画
+    const invCanvas = document.createElement('canvas');
+    invCanvas.width = 32;
+    invCanvas.height = 32;
+    invCanvas.style.cssText = `
+      width: 32px; height: 32px;
+      border-radius: 2px;
+      margin-bottom: 2px;
+    `;
+    const ctx = invCanvas.getContext('2d')!;
+    ctx.fillStyle = 'rgba(255,255,255,0.0)';
+    ctx.fillRect(0, 0, 32, 32);
+    // バッグ本体
+    ctx.fillStyle = 'rgba(200,180,140,0.9)';
+    ctx.beginPath();
+    ctx.roundRect(4, 12, 24, 17, 3);
+    ctx.fill();
+    // バッグの蓋
+    ctx.fillStyle = 'rgba(170,145,100,0.9)';
+    ctx.beginPath();
+    ctx.roundRect(4, 9, 24, 8, 3);
+    ctx.fill();
+    // バッグの持ち手
+    ctx.strokeStyle = 'rgba(200,180,140,0.9)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(16, 9, 5, Math.PI, 0);
+    ctx.stroke();
+    // 留め具
+    ctx.fillStyle = 'rgba(230,200,100,0.95)';
+    ctx.beginPath();
+    ctx.roundRect(13, 17, 6, 5, 1);
+    ctx.fill();
+
+    const invLabel = document.createElement('div');
+    invLabel.textContent = 'Inv';
+    invLabel.style.cssText = `
+      font-size: 9px;
+      color: #ccc;
+      text-align: center;
+      white-space: nowrap;
+    `;
+
+    invSlot.appendChild(invCanvas);
+    invSlot.appendChild(invLabel);
+    invSlot.addEventListener('click', () => this._onInventory?.());
+    invSlot.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      this._onInventory?.();
+    });
+    container.appendChild(invSlot);
+
     document.body.appendChild(container);
     this.refreshAllSlots();
+  }
+
+  /** インベントリボタンのコールバックを設定 */
+  onInventory(cb: () => void): void {
+    this._onInventory = cb;
   }
 
   get selectedIndex(): number {
