@@ -5,6 +5,7 @@ import { World, MAP_W, MAP_D, CHUNKS_X, CHUNKS_Y, CHUNKS_Z } from './World';
 import { voxelRaycast, RaycastHit } from './Raycast';
 import { BlockTypes } from '../voxel/BlockTypes';
 import { getTerrainHeight } from '../voxel/WorldGen';
+import { BlockChange } from './BuildHistory';
 
 const MOVE_SPEED = 5;
 const BUILD_FLY_SPEED = 10;
@@ -21,6 +22,9 @@ export type GameMode = 'walk' | 'build';
 /** ブロック操作時のコールバック型 */
 export type BlockEffectCallback = (wx: number, wy: number, wz: number, blockId: number) => void;
 
+/** 履歴記録用コールバック型: 変更リストを受け取る（ミラー設置を含む複数ブロック対応） */
+export type BlockRecordCallback = (changes: BlockChange[]) => void;
+
 export class Player {
   readonly camera: THREE.PerspectiveCamera;
   private body: RAPIER.RigidBody;
@@ -31,7 +35,13 @@ export class Player {
   onBlockPlace: BlockEffectCallback | null = null;
   onBlockBreak: BlockEffectCallback | null = null;
   onBlockBreaking: BlockEffectCallback | null = null; // 長押し中に継続的に呼ばれる
+  /** ブロック変化を履歴に記録するためのコールバック（Game 側で設定） */
+  onBlockRecord: BlockRecordCallback | null = null;
   mode: GameMode = 'walk';
+  /** ミラー軸設定: none / x / z / xz */
+  mirrorAxis: 'none' | 'x' | 'z' | 'xz' = 'none';
+  /** true の場合はブロック設置・破壊の入力処理をスキップする（ペーストプレビュー中など） */
+  blockInteractionDisabled = false;
   private cameraY = 0; // カメラY位置（スムーズ補間用）
 
   /** 現在のレイキャスト結果（Game側でハイライト表示に使用） */
@@ -223,15 +233,51 @@ export class Player {
     });
   }
 
+  /**
+   * ミラー軸の設定に基づいて、元の座標から対称座標リストを生成する。
+   * 中心線上（元の座標とミラー座標が同一）や範囲外の座標は除外する。
+   */
+  private getMirrorPositions(wx: number, wy: number, wz: number): Array<[number, number, number]> {
+    const result: Array<[number, number, number]> = [];
+    if (this.mirrorAxis === 'none') return result;
+
+    const mx = MAP_W - 1 - wx; // X軸ミラー座標
+    const mz = MAP_D - 1 - wz; // Z軸ミラー座標
+
+    // 候補座標を追加する内部関数（重複・範囲外チェック）
+    const addIfValid = (x: number, y: number, z: number): void => {
+      // 元の座標と同一の場合はスキップ（中心線上）
+      if (x === wx && z === wz) return;
+      // 範囲外チェック
+      if (x < 0 || x >= MAP_W || z < 0 || z >= MAP_D) return;
+      result.push([x, y, z]);
+    };
+
+    if (this.mirrorAxis === 'x' || this.mirrorAxis === 'xz') {
+      addIfValid(mx, wy, wz);
+    }
+    if (this.mirrorAxis === 'z' || this.mirrorAxis === 'xz') {
+      addIfValid(wx, wy, mz);
+    }
+    if (this.mirrorAxis === 'xz') {
+      addIfValid(mx, wy, mz);
+    }
+
+    return result;
+  }
+
   private handleBlockInteraction(): void {
+    // ペーストプレビュー中など、ブロック操作が無効化されている場合はスキップ
+    if (this.blockInteractionDisabled) return;
     if (!this.currentHit) return;
     const hit = this.currentHit;
     const camPos = this.camera.position;
 
     // 短クリック（離した時） → 設置
-    if (this.input.mouseLeftClicked) {
+    // G キーが押されている場合は選択範囲操作のため、ブロック設置をスキップ
+    if (this.input.mouseLeftClicked && !this.input.isDown('KeyG')) {
       const placePos = hit.blockPos.clone().add(hit.normal);
-      // Walk モードのみ自分との重なりチェック
+      // Walk モードのみ自分との重なりチェック（元の設置位置）
       let overlaps = false;
       if (this.mode === 'walk') {
         const px = Math.floor(camPos.x);
@@ -243,7 +289,30 @@ export class Player {
         overlaps = ppx === px && ppz === pz && (ppy === py || ppy === py + 1);
       }
       if (!overlaps && placePos.y >= 0) {
-        this.world.setBlock(placePos.x, placePos.y, placePos.z, this.selectedBlockId);
+        const wx = placePos.x, wy = placePos.y, wz = placePos.z;
+        const changes: BlockChange[] = [];
+
+        // 元の座標に設置
+        const oldId = this.world.getBlock(wx, wy, wz);
+        this.world.setBlock(wx, wy, wz, this.selectedBlockId);
+        changes.push({ wx, wy, wz, oldId, newId: this.selectedBlockId });
+
+        // ミラー座標に設置
+        for (const [mx, my, mz] of this.getMirrorPositions(wx, wy, wz)) {
+          // Walk モードのみ重なりチェック
+          if (this.mode === 'walk') {
+            const px = Math.floor(camPos.x);
+            const py = Math.floor(camPos.y - PLAYER_HEIGHT / 2);
+            const pz = Math.floor(camPos.z);
+            if (mx === px && mz === pz && (my === py || my === py + 1)) continue;
+          }
+          const mOldId = this.world.getBlock(mx, my, mz);
+          this.world.setBlock(mx, my, mz, this.selectedBlockId);
+          changes.push({ wx: mx, wy: my, wz: mz, oldId: mOldId, newId: this.selectedBlockId });
+        }
+
+        // 全変更を1エントリとして履歴記録
+        this.onBlockRecord?.(changes);
       }
     }
 
@@ -259,11 +328,29 @@ export class Player {
 
     // 左長押し → 破壊
     if (this.input.mouseLeft && holdDuration >= DESTROY_HOLD_TIME && !this.input.mouseLeftFired) {
-      const blockId = this.world.getBlock(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z);
+      const bx = hit.blockPos.x, by = hit.blockPos.y, bz = hit.blockPos.z;
+      const blockId = this.world.getBlock(bx, by, bz);
       const def = BlockTypes.get(blockId);
       if (def && def.breakable) {
-        this.onBlockBreak?.(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z, blockId);
-        this.world.setBlock(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z, BlockTypes.AIR);
+        const changes: BlockChange[] = [];
+
+        // 元の座標を破壊
+        this.onBlockBreak?.(bx, by, bz, blockId);
+        this.world.setBlock(bx, by, bz, BlockTypes.AIR);
+        changes.push({ wx: bx, wy: by, wz: bz, oldId: blockId, newId: BlockTypes.AIR });
+
+        // ミラー座標のブロックも破壊
+        for (const [mx, my, mz] of this.getMirrorPositions(bx, by, bz)) {
+          const mBlockId = this.world.getBlock(mx, my, mz);
+          const mDef = BlockTypes.get(mBlockId);
+          if (mDef && mDef.breakable) {
+            this.world.setBlock(mx, my, mz, BlockTypes.AIR);
+            changes.push({ wx: mx, wy: my, wz: mz, oldId: mBlockId, newId: BlockTypes.AIR });
+          }
+        }
+
+        // 全変更を1エントリとして履歴記録
+        this.onBlockRecord?.(changes);
       }
       this.input.mouseLeftFired = true;
     }

@@ -39,8 +39,14 @@
 | 左長押し | ブロック破壊 | ブロック破壊 |
 | スクロール | ブロック種類切替 | ブロック種類切替 |
 | E | インベントリ | インベントリ |
-| F | モード切り替え　| モード切り替え　| 
+| F | モード切り替え　| モード切り替え　|
 | Q | メニュー | メニュー |
+| Ctrl+Z | Undo | Undo |
+| Ctrl+Y / Ctrl+Shift+Z | Redo | Redo |
+| G + 左クリック | — | 選択点設定 |
+| Ctrl+C | — | 選択範囲コピー |
+| Ctrl+V | — | ペースト |
+| M | — | ミラー軸サイクル |
 
 ### ゲームモード
 
@@ -97,7 +103,10 @@ src/
 │   ├── World.ts         # ワールド・チャンク管理
 │   ├── Player.ts        # プレイヤー制御・モード管理
 │   ├── InputManager.ts  # キーボード・マウス入力
-│   └── Raycast.ts       # ブロック選択・レイキャスト
+│   ├── Raycast.ts       # ブロック選択・レイキャスト
+│   ├── BuildHistory.ts  # Undo/Redo スタック管理
+│   ├── BuildTools.ts    # Fill・置換・コピー/ペーストロジック
+│   └── SelectionBox.ts  # 3次元選択範囲（AABB）管理
 ├── voxel/
 │   ├── Chunk.ts         # チャンクデータ・メッシュ生成
 │   ├── BlockTypes.ts    # ブロック種類定義
@@ -105,9 +114,11 @@ src/
 ├── ui/
 │   ├── HUD.ts           # HUD 全体管理
 │   ├── Hotbar.ts        # ホットバー UI
-│   └── ModeButton.ts    # Walk/Build ボタン
+│   ├── ModeButton.ts    # Walk/Build ボタン
+│   └── BuildToolbar.ts  # ビルドモード用ツールバー
 └── io/
-    └── MapSerializer.ts # JSON 保存・ロード
+    ├── MapSerializer.ts     # JSON 保存・ロード
+    └── TemplateSerializer.ts # 構造テンプレート保存・ロード
 ```
 
 ---
@@ -150,6 +161,40 @@ src/
 
 - [x] ~~**M11** — 一人称の手・道具表示~~ → **見送り**
   - 試行したがローポリの手がゲームの雰囲気に合わず不自然だったため削除
+
+### フェーズ 3 — ビルド機能拡張
+
+- [x] **M12** — Undo / Redo
+  - `BuildHistory` クラス（最大64エントリのスタック管理）
+  - `World.setBlockBatch` によるチャンク一括再構築
+  - Ctrl+Z / Ctrl+Y（Ctrl+Shift+Z）で操作の取り消し・やり直し
+  - マップロード時に履歴クリア
+
+- [x] **M13** — 選択範囲 + Fill
+  - `SelectionBox` — G+クリックで2点選択、AABB ワイヤーフレーム表示
+  - `BuildTools.fill` — 選択範囲をホットバーのブロックで一括充填
+  - `BuildToolbar` — ビルドモード時に画面左側に表示（Undo/Redo/Fill ボタン）
+  - Fill は Undo 対応、Water は上書きスキップ
+
+- [x] **M14** — コピー / ペースト
+  - Ctrl+C で選択範囲をクリップボードにコピー
+  - Ctrl+V でペーストプレビュー表示→左クリック確定 / ESC キャンセル
+  - ペーストは Undo 対応
+
+- [x] **M15** — 置換ツール
+  - 選択範囲内の特定ブロックを別種に一括置換
+  - From / To 選択ダイアログ（Pointer Lock 解除して操作）
+  - 置換は Undo 対応
+
+- [x] **M16** — ミラー（対称配置）
+  - M キーで軸サイクル（none → x → z → xz → none）
+  - 設置・破壊が対称位置にも同時実行、対称位置にハイライト表示
+  - ミラー操作はまとめて1エントリで Undo
+
+- [x] **M17** — 構造テンプレート
+  - コピーした構造を名前付きでセッション内に保存
+  - `.voxtemplate` ファイルにエクスポート / インポート
+  - BuildToolbar の Templates パネルから選択・ペースト
 
 ---
 

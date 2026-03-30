@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 const TEX_SIZE = 16; // 各テクスチャのピクセルサイズ
-const ATLAS_COLS = 34; // アトラスの列数（ブロック数）
+const ATLAS_COLS = 102; // アトラスの列数（ブロック数）
 const ATLAS_ROWS = 3; // 行数（top, side, bottom）
 const ATLAS_W = TEX_SIZE * ATLAS_COLS;
 const ATLAS_H = TEX_SIZE * ATLAS_ROWS;
@@ -76,6 +76,77 @@ export class TextureAtlas {
       [32, this.genWool(0x222222, 3201), this.genWool(0x222222, 3202), this.genWool(0x222222, 3203)], // Wool Black
       [33, this.genBookshelfTop, this.genBookshelfSide, this.genBookshelfTop], // Bookshelf
       [34, this.genTorchTop, this.genTorchSide, this.genTorchTop],           // Torch
+      // === 自然物追加 ===
+      [35, this.genLogTop(0xd4c89a, 3501), this.genLogSide(0xc8b880, 3502), this.genLogTop(0xd4c89a, 3503)], // Birch Log
+      [36, this.genLogTop(0x4a3218, 3601), this.genLogSide(0x5a3e1b, 3602), this.genLogTop(0x4a3218, 3603)], // Jungle Log
+      [37, this.genLogTop(0x1e1208, 3701), this.genLogSide(0x2e1f0e, 3702), this.genLogTop(0x1e1208, 3703)], // Dark Oak Log
+      [38, this.genCite(0x7fb87f, 3801), this.genCite(0x7fb87f, 3802), this.genCite(0x7fb87f, 3803)], // Birch Leaves
+      [39, this.genCite(0x1a7a1a, 3901), this.genCite(0x1a7a1a, 3902), this.genCite(0x1a7a1a, 3903)], // Jungle Leaves
+      [40, this.genMossStone, this.genMossStone, this.genMossStone],          // Moss Stone
+      [41, this.genCite(0x6b5040, 4101), this.genCite(0x6b5040, 4102), this.genCite(0x6b5040, 4103)], // Mud
+      [42, this.genCite(0x7a6070, 4201), this.genCite(0x7a6070, 4202), this.genCite(0x7a6070, 4203)], // Mycelium
+      [43, this.genNetherRack, this.genNetherRack, this.genNetherRack],        // Nether Rack
+      [44, this.genCite(0x5a4a38, 4401), this.genCite(0x5a4a38, 4402), this.genCite(0x5a4a38, 4403)], // Soul Sand
+      [45, this.genCite(0x4a4a50, 4501), this.genCite(0x4a4a50, 4502), this.genCite(0x4a4a50, 4503)], // Basalt
+      [46, this.genMagma, this.genMagma, this.genMagma],                       // Magma
+      [47, this.genCite(0xdd4444, 4701), this.genCite(0xdd4444, 4702), this.genCite(0xdd4444, 4703)], // Coral Red
+      [48, this.genCite(0x4466dd, 4801), this.genCite(0x4466dd, 4802), this.genCite(0x4466dd, 4803)], // Coral Blue
+      [49, this.genSponge, this.genSponge, this.genSponge],                    // Sponge
+      [50, this.genGranite, this.genGranite, this.genGranite],                 // Granite
+      [51, this.genCite(0x909090, 5101), this.genCite(0x909090, 5102), this.genCite(0x909090, 5103)], // Andesite
+      [52, this.genCite(0xd0d0d0, 5201), this.genCite(0xd0d0d0, 5202), this.genCite(0xd0d0d0, 5203)], // Diorite
+      [53, this.genBedrock, this.genBedrock, this.genBedrock],                 // Bedrock
+      [54, this.genOre(0x555555, 0x111111, 5401), this.genOre(0x555555, 0x111111, 5402), this.genOre(0x555555, 0x111111, 5403)], // Coal Ore
+      [55, this.genOre(0x888870, 0xcc8866, 5501), this.genOre(0x888870, 0xcc8866, 5502), this.genOre(0x888870, 0xcc8866, 5503)], // Iron Ore
+      [56, this.genOre(0x888870, 0xffd700, 5601), this.genOre(0x888870, 0xffd700, 5602), this.genOre(0x888870, 0xffd700, 5603)], // Gold Ore
+      [57, this.genOre(0x888870, 0x00e5ff, 5701), this.genOre(0x888870, 0x00e5ff, 5702), this.genOre(0x888870, 0x00e5ff, 5703)], // Diamond Ore
+      [58, this.genOre(0x888870, 0x00e060, 5801), this.genOre(0x888870, 0x00e060, 5802), this.genOre(0x888870, 0x00e060, 5803)], // Emerald Ore
+      // === 建材追加 ===
+      [59, this.genMossyStoneBrick, this.genMossyStoneBrick, this.genMossyStoneBrick], // Mossy Stone Brick
+      [60, this.genCrackedStoneBrick, this.genCrackedStoneBrick, this.genCrackedStoneBrick], // Cracked Stone Brick
+      [61, this.genChiseledStone, this.genChiseledStone, this.genChiseledStone], // Chiseled Stone
+      [62, this.genCite(0xbbbbbb, 6201), this.genCite(0xbbbbbb, 6202), this.genCite(0xbbbbbb, 6203)], // Smooth Stone
+      [63, this.genCite(0xd8c870, 6301), this.genCite(0xd8c870, 6302), this.genCite(0xd8c870, 6303)], // Cut Sandstone
+      [64, this.genCite(0xb86030, 6401), this.genCite(0xb86030, 6402), this.genCite(0xb86030, 6403)], // Red Sandstone
+      [65, this.genDarkBrick(0x3a1a1a, 6501), this.genDarkBrick(0x3a1a1a, 6502), this.genDarkBrick(0x3a1a1a, 6503)], // Nether Brick
+      [66, this.genDarkBrick(0x6a1010, 6601), this.genDarkBrick(0x6a1010, 6602), this.genDarkBrick(0x6a1010, 6603)], // Red Nether Brick
+      [67, this.genCite(0x996699, 6701), this.genCite(0x996699, 6702), this.genCite(0x996699, 6703)], // Purpur Block
+      [68, this.genCite(0xd8d890, 6801), this.genCite(0xd8d890, 6802), this.genCite(0xd8d890, 6803)], // End Stone
+      [69, this.genObsidian, this.genObsidian, this.genObsidian],              // Obsidian
+      [70, this.genQuartz, this.genQuartz, this.genQuartz],                    // Quartz
+      [71, this.genCite(0xf4f0e8, 7101), this.genCite(0xf4f0e8, 7102), this.genCite(0xf4f0e8, 7103)], // Smooth Quartz
+      [72, this.genMetalBlock(0xf0c020, 7201), this.genMetalBlock(0xf0c020, 7202), this.genMetalBlock(0xf0c020, 7203)], // Gold Block
+      [73, this.genMetalBlock(0x60d8e0, 7301), this.genMetalBlock(0x60d8e0, 7302), this.genMetalBlock(0x60d8e0, 7303)], // Diamond Block
+      [74, this.genMetalBlock(0x20c050, 7401), this.genMetalBlock(0x20c050, 7402), this.genMetalBlock(0x20c050, 7403)], // Emerald Block
+      [75, this.genMetalBlock(0x2244aa, 7501), this.genMetalBlock(0x2244aa, 7502), this.genMetalBlock(0x2244aa, 7503)], // Lapis Block
+      [76, this.genCite(0x222222, 7601), this.genCite(0x222222, 7602), this.genCite(0x222222, 7603)], // Coal Block
+      [77, this.genMetalBlock(0xc07848, 7701), this.genMetalBlock(0xc07848, 7702), this.genMetalBlock(0xc07848, 7703)], // Copper Block
+      [78, this.genMetalBlock(0xd89060, 7801), this.genMetalBlock(0xd89060, 7802), this.genMetalBlock(0xd89060, 7803)], // Waxed Copper
+      [79, this.genAmethyst, this.genAmethyst, this.genAmethyst],              // Amethyst Block
+      [80, this.genCite(0x444450, 8001), this.genCite(0x444450, 8002), this.genCite(0x444450, 8003)], // Deepslate
+      [81, this.genCite(0x383840, 8101), this.genCite(0x383840, 8102), this.genCite(0x383840, 8103)], // Smooth Basalt
+      [82, this.genCite(0x7a7a70, 8201), this.genCite(0x7a7a70, 8202), this.genCite(0x7a7a70, 8203)], // Tuff
+      [83, this.genCite(0xeeeee8, 8301), this.genCite(0xeeeee8, 8302), this.genCite(0xeeeee8, 8303)], // Calcite
+      [84, this.genCite(0x9a8870, 8401), this.genCite(0x9a8870, 8402), this.genCite(0x9a8870, 8403)], // Dripstone
+      [85, this.genDarkBrick(0x9a7a5a, 8501), this.genDarkBrick(0x9a7a5a, 8502), this.genDarkBrick(0x9a7a5a, 8503)], // Mud Brick
+      // === 装飾追加 ===
+      [86,  this.genWool(0x882299, 8601),  this.genWool(0x882299, 8602),  this.genWool(0x882299, 8603)],  // Wool Purple
+      [87,  this.genWool(0x229988, 8701),  this.genWool(0x229988, 8702),  this.genWool(0x229988, 8703)],  // Wool Cyan
+      [88,  this.genWool(0x66cc33, 8801),  this.genWool(0x66cc33, 8802),  this.genWool(0x66cc33, 8803)],  // Wool Lime
+      [89,  this.genWool(0xee8899, 8901),  this.genWool(0xee8899, 8902),  this.genWool(0xee8899, 8903)],  // Wool Pink
+      [90,  this.genWool(0xcc44aa, 9001),  this.genWool(0xcc44aa, 9002),  this.genWool(0xcc44aa, 9003)],  // Wool Magenta
+      [91,  this.genWool(0x7a5030, 9101),  this.genWool(0x7a5030, 9102),  this.genWool(0x7a5030, 9103)],  // Wool Brown
+      [92,  this.genWool(0x777788, 9201),  this.genWool(0x777788, 9202),  this.genWool(0x777788, 9203)],  // Wool Gray
+      [93,  this.genWool(0x6699ee, 9301),  this.genWool(0x6699ee, 9302),  this.genWool(0x6699ee, 9303)],  // Wool Light Blue
+      [94,  this.genTerracotta(0xaa4433, 9401), this.genTerracotta(0xaa4433, 9402), this.genTerracotta(0xaa4433, 9403)], // Glazed Terracotta Red
+      [95,  this.genTerracotta(0x334488, 9501), this.genTerracotta(0x334488, 9502), this.genTerracotta(0x334488, 9503)], // Glazed Terracotta Blue
+      [96,  this.genTerracotta(0xccaa22, 9601), this.genTerracotta(0xccaa22, 9602), this.genTerracotta(0xccaa22, 9603)], // Glazed Terracotta Yellow
+      [97,  this.genTerracotta(0x336633, 9701), this.genTerracotta(0x336633, 9702), this.genTerracotta(0x336633, 9703)], // Glazed Terracotta Green
+      [98,  this.genTerracotta(0xddddcc, 9801), this.genTerracotta(0xddddcc, 9802), this.genTerracotta(0xddddcc, 9803)], // Glazed Terracotta White
+      [99,  this.genLantern, this.genLantern, this.genLantern],               // Lantern
+      [100, this.genGlowstone, this.genGlowstone, this.genGlowstone],         // Glowstone
+      [101, this.genSeaLantern, this.genSeaLantern, this.genSeaLantern],       // Sea Lantern
+      [102, this.genShroomlight, this.genShroomlight, this.genShroomlight],    // Shroomlight
     ];
 
     generators.forEach(([id, topGen, sideGen, bottomGen], col) => {
@@ -736,6 +807,351 @@ export class TextureAtlas {
           ctx.fillRect(ox + x, oy + y, 1, 1);
         }
       }
+    }
+  }
+
+  // === 新規テクスチャ生成関数 ===
+
+  /** 丸太汎用（上面: 年輪） */
+  private genLogTop(colorHex: number, seed: number): TexGen {
+    return (ctx, ox, oy) => {
+      const rng = seededRandom(seed);
+      const r = (colorHex >> 16) & 0xff, g = (colorHex >> 8) & 0xff, b = colorHex & 0xff;
+      const cx = TEX_SIZE / 2, cy = TEX_SIZE / 2;
+      for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+        const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+        const ring = Math.sin(dist * 2.5) * 0.5 + 0.5;
+        const n = Math.floor(rng() * 12) - 6;
+        ctx.fillStyle = `rgb(${Math.min(255,r+n+Math.floor(ring*20))},${Math.min(255,g+n)},${Math.min(255,b+n)})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    };
+  }
+
+  /** 丸太汎用（側面: 樹皮） */
+  private genLogSide(colorHex: number, seed: number): TexGen {
+    return (ctx, ox, oy) => {
+      const rng = seededRandom(seed);
+      const r = (colorHex >> 16) & 0xff, g = (colorHex >> 8) & 0xff, b = colorHex & 0xff;
+      for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+        const stripe = Math.sin(x * 2.0 + rng() * 0.3) * 0.3 + 0.7;
+        const n = Math.floor(rng() * 10) - 5 + Math.floor(stripe * 20);
+        ctx.fillStyle = `rgb(${Math.min(255,r+n)},${Math.min(255,g+n)},${Math.min(255,b+n)})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    };
+  }
+
+  /** 苔石 */
+  private genMossStone(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    this.genStone(ctx, ox, oy);
+    const rng = seededRandom(4001);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      if (rng() < 0.25) {
+        const g = 80 + Math.floor(rng() * 50);
+        ctx.fillStyle = `rgba(${20+Math.floor(rng()*20)},${g},${10+Math.floor(rng()*20)},0.7)`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+  }
+
+  /** ネザーラック */
+  private genNetherRack(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(4301);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const v = 80 + Math.floor(rng() * 40);
+      ctx.fillStyle = `rgb(${v},${Math.floor(v*0.25)},${Math.floor(v*0.25)})`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+  }
+
+  /** マグマブロック */
+  private genMagma(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(4601);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const heat = Math.sin(x * 0.8 + y * 0.6) * 0.5 + 0.5;
+      const r = 150 + Math.floor(heat * 80) + Math.floor(rng() * 20);
+      const g = Math.floor(heat * 60) + Math.floor(rng() * 20);
+      ctx.fillStyle = `rgb(${Math.min(255,r)},${g},0)`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+  }
+
+  /** スポンジ */
+  private genSponge(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(4901);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const base = 180 + Math.floor(rng() * 30);
+      ctx.fillStyle = `rgb(${base},${base},${Math.floor(base*0.4)})`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+    // 穴模様
+    const rng2 = seededRandom(4902);
+    for (let i = 0; i < 12; i++) {
+      const px = Math.floor(rng2() * TEX_SIZE), py = Math.floor(rng2() * TEX_SIZE);
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(ox + px, oy + py, 1, 1);
+    }
+  }
+
+  /** 花崗岩 */
+  private genGranite(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(5001);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const v = 150 + Math.floor(rng() * 40);
+      ctx.fillStyle = `rgb(${Math.min(255,v+20)},${Math.floor(v*0.7)},${Math.floor(v*0.6)})`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+    const rng2 = seededRandom(5003);
+    for (let i = 0; i < 8; i++) {
+      const px = Math.floor(rng2() * TEX_SIZE), py = Math.floor(rng2() * TEX_SIZE);
+      ctx.fillStyle = 'rgba(80,40,30,0.4)';
+      ctx.fillRect(ox + px, oy + py, 2, 1);
+    }
+  }
+
+  /** 岩盤 */
+  private genBedrock(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(5301);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const v = 40 + Math.floor(rng() * 20);
+      ctx.fillStyle = `rgb(${v},${v},${v+5})`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+    const rng2 = seededRandom(5302);
+    for (let i = 0; i < 10; i++) {
+      const px = Math.floor(rng2() * TEX_SIZE), py = Math.floor(rng2() * TEX_SIZE);
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(ox + px, oy + py, 2, 1);
+    }
+  }
+
+  /** 鉱石（石ベース + 鉱脈ドット） */
+  private genOre(baseHex: number, oreHex: number, seed: number): TexGen {
+    return (ctx, ox, oy) => {
+      const rng = seededRandom(seed);
+      const br = (baseHex >> 16) & 0xff, bg = (baseHex >> 8) & 0xff, bb = baseHex & 0xff;
+      const or_ = (oreHex >> 16) & 0xff, og = (oreHex >> 8) & 0xff, ob = oreHex & 0xff;
+      for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+        const n = Math.floor(rng() * 20) - 10;
+        ctx.fillStyle = `rgb(${br+n},${bg+n},${bb+n})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+      const rng2 = seededRandom(seed + 1);
+      for (let i = 0; i < 8; i++) {
+        const px = 1 + Math.floor(rng2() * (TEX_SIZE-2)), py = 1 + Math.floor(rng2() * (TEX_SIZE-2));
+        ctx.fillStyle = `rgb(${or_},${og},${ob})`;
+        ctx.fillRect(ox + px, oy + py, 2, 2);
+      }
+    };
+  }
+
+  /** 苔石レンガ */
+  private genMossyStoneBrick(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    this.genStoneBrick(ctx, ox, oy);
+    const rng = seededRandom(5901);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      if (rng() < 0.2) {
+        ctx.fillStyle = `rgba(30,${80+Math.floor(rng()*50)},20,0.65)`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+  }
+
+  /** ひび割れ石レンガ */
+  private genCrackedStoneBrick(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    this.genStoneBrick(ctx, ox, oy);
+    const rng = seededRandom(6001);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    for (let i = 0; i < 5; i++) {
+      const sx = Math.floor(rng() * TEX_SIZE), sy = Math.floor(rng() * TEX_SIZE);
+      const len = 3 + Math.floor(rng() * 5);
+      for (let j = 0; j < len; j++) ctx.fillRect(ox + ((sx+j) % TEX_SIZE), oy + sy, 1, 1);
+    }
+  }
+
+  /** 彫刻石 */
+  private genChiseledStone(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(6101);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const v = 160 + Math.floor(rng() * 20);
+      ctx.fillStyle = `rgb(${v},${v},${v})`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+    // 十字パターン
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    for (let i = 0; i < TEX_SIZE; i++) {
+      ctx.fillRect(ox + i, oy + 7, 1, 2);
+      ctx.fillRect(ox + 7, oy + i, 2, 1);
+    }
+    ctx.fillRect(ox + 4, oy + 4, 8, 8);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(ox + 5, oy + 5, 6, 6);
+  }
+
+  /** 黒曜石 */
+  private genObsidian(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(6901);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const v = 15 + Math.floor(rng() * 15);
+      ctx.fillStyle = `rgb(${v},${Math.floor(v*0.5)},${v+5})`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+    const rng2 = seededRandom(6902);
+    for (let i = 0; i < 5; i++) {
+      const px = Math.floor(rng2() * TEX_SIZE), py = Math.floor(rng2() * TEX_SIZE);
+      ctx.fillStyle = 'rgba(100,50,150,0.4)';
+      ctx.fillRect(ox + px, oy + py, 2, 2);
+    }
+  }
+
+  /** クォーツ */
+  private genQuartz(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(7001);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const v = 220 + Math.floor(rng() * 20);
+      ctx.fillStyle = `rgb(${v},${v-5},${v-10})`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillRect(ox + 3, oy + 3, 2, TEX_SIZE - 6);
+    ctx.fillRect(ox + 11, oy + 3, 2, TEX_SIZE - 6);
+  }
+
+  /** メタルブロック汎用（金・ダイヤ・エメラルド等） */
+  private genMetalBlock(colorHex: number, seed: number): TexGen {
+    return (ctx, ox, oy) => {
+      const rng = seededRandom(seed);
+      const r = (colorHex >> 16) & 0xff, g = (colorHex >> 8) & 0xff, b = colorHex & 0xff;
+      for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+        const n = Math.floor(rng() * 16) - 8;
+        ctx.fillStyle = `rgb(${Math.min(255,r+n)},${Math.min(255,g+n)},${Math.min(255,b+n)})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+      // ハイライト
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillRect(ox + 1, oy + 1, TEX_SIZE-2, 1);
+      ctx.fillRect(ox + 1, oy + 1, 1, TEX_SIZE-2);
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.fillRect(ox + 1, oy + TEX_SIZE-2, TEX_SIZE-2, 1);
+      ctx.fillRect(ox + TEX_SIZE-2, oy + 1, 1, TEX_SIZE-2);
+    };
+  }
+
+  /** アメジスト */
+  private genAmethyst(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(7901);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const v = 120 + Math.floor(rng() * 40);
+      ctx.fillStyle = `rgb(${Math.floor(v*0.7)},${Math.floor(v*0.4)},${v})`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+    const rng2 = seededRandom(7902);
+    for (let i = 0; i < 6; i++) {
+      const px = Math.floor(rng2() * TEX_SIZE), py = Math.floor(rng2() * TEX_SIZE);
+      ctx.fillStyle = 'rgba(200,150,255,0.5)';
+      ctx.fillRect(ox + px, oy + py, 2, 2);
+    }
+  }
+
+  /** 暗色レンガ汎用（ネザーレンガ・泥レンガ等） */
+  private genDarkBrick(colorHex: number, seed: number): TexGen {
+    return (ctx, ox, oy) => {
+      const rng = seededRandom(seed);
+      const r = (colorHex >> 16) & 0xff, g = (colorHex >> 8) & 0xff, b = colorHex & 0xff;
+      for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+        const n = Math.floor(rng() * 16) - 8;
+        ctx.fillStyle = `rgb(${Math.min(255,r+n)},${Math.min(255,g+n)},${Math.min(255,b+n)})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      for (let y = 0; y < TEX_SIZE; y += 5) ctx.fillRect(ox, oy + y, TEX_SIZE, 1);
+      for (let x = 0; x < TEX_SIZE; x += 8) ctx.fillRect(ox + x, oy, 1, TEX_SIZE);
+    };
+  }
+
+  /** テラコッタ（釉薬あり・パターン） */
+  private genTerracotta(colorHex: number, seed: number): TexGen {
+    return (ctx, ox, oy) => {
+      const rng = seededRandom(seed);
+      const r = (colorHex >> 16) & 0xff, g = (colorHex >> 8) & 0xff, b = colorHex & 0xff;
+      for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+        const n = Math.floor(rng() * 10) - 5;
+        ctx.fillStyle = `rgb(${Math.min(255,r+n)},${Math.min(255,g+n)},${Math.min(255,b+n)})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+      // 光沢パターン
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.fillRect(ox + 2, oy + 2, TEX_SIZE-4, 2);
+      ctx.fillRect(ox + 2, oy + 2, 2, TEX_SIZE-4);
+    };
+  }
+
+  /** ランタン */
+  private genLantern(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(9901);
+    // 外枠（鉄）
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const v = 90 + Math.floor(rng() * 20);
+      ctx.fillStyle = `rgb(${v},${v},${v})`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+    // 内部の光
+    for (let y = 3; y < 13; y++) for (let x = 3; x < 13; x++) {
+      const heat = 1 - (Math.abs(x-8) + Math.abs(y-8)) / 10;
+      if (heat > 0) {
+        ctx.fillStyle = `rgba(255,${180+Math.floor(heat*60)},${Math.floor(heat*80)},${heat})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+  }
+
+  /** グロウストーン */
+  private genGlowstone(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(10001);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const v = 180 + Math.floor(rng() * 50);
+      ctx.fillStyle = `rgb(${v},${Math.floor(v*0.85)},${Math.floor(v*0.4)})`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+    // 光のひびパターン
+    ctx.fillStyle = 'rgba(255,240,100,0.4)';
+    const rng2 = seededRandom(10002);
+    for (let i = 0; i < 6; i++) {
+      const px = Math.floor(rng2() * TEX_SIZE), py = Math.floor(rng2() * TEX_SIZE);
+      ctx.fillRect(ox + px, oy + py, 3, 1);
+    }
+  }
+
+  /** シーランタン */
+  private genSeaLantern(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(10101);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const v = 160 + Math.floor(rng() * 40);
+      ctx.fillStyle = `rgb(${Math.floor(v*0.6)},${v},${Math.floor(v*0.9)})`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+    // 格子模様
+    ctx.fillStyle = 'rgba(100,220,200,0.3)';
+    for (let i = 0; i < TEX_SIZE; i += 4) {
+      ctx.fillRect(ox + i, oy, 1, TEX_SIZE);
+      ctx.fillRect(ox, oy + i, TEX_SIZE, 1);
+    }
+  }
+
+  /** キノコライト */
+  private genShroomlight(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const rng = seededRandom(10201);
+    for (let y = 0; y < TEX_SIZE; y++) for (let x = 0; x < TEX_SIZE; x++) {
+      const v = 180 + Math.floor(rng() * 50);
+      ctx.fillStyle = `rgb(${v},${Math.floor(v*0.55)},${Math.floor(v*0.2)})`;
+      ctx.fillRect(ox + x, oy + y, 1, 1);
+    }
+    const rng2 = seededRandom(10202);
+    for (let i = 0; i < 8; i++) {
+      const px = Math.floor(rng2() * TEX_SIZE), py = Math.floor(rng2() * TEX_SIZE);
+      ctx.fillStyle = 'rgba(255,200,100,0.5)';
+      ctx.fillRect(ox + px, oy + py, 2, 2);
     }
   }
 
