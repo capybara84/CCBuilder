@@ -32,11 +32,9 @@ export class HUD {
 
   // タッチ用ボタン
   readonly menuButton: HTMLButtonElement;
-  readonly jumpButton: HTMLButtonElement;
   readonly inventoryButton: HTMLButtonElement;
 
   private _onMenu: (() => void) | null = null;
-  private _onJump: (() => void) | null = null;
   private _onInventory: (() => void) | null = null;
 
   constructor() {
@@ -60,21 +58,7 @@ export class HUD {
       this._onMenu?.();
     });
 
-    // 右下: JUMP ボタン
-    this.jumpButton = this.createButton('JUMP', {
-      position: 'fixed',
-      bottom: '90px',
-      right: '16px',
-      zIndex: '20',
-    });
-    this.jumpButton.dataset.hud = 'true';
-    this.jumpButton.addEventListener('mousedown', () => this._onJump?.());
-    this.jumpButton.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      this._onJump?.();
-    });
-
-    // JUMP の上: INVENTORY ボタン
+    // INVENTORY ボタン
     this.inventoryButton = this.createButton('INVENTORY', {
       position: 'fixed',
       bottom: '145px',
@@ -98,7 +82,6 @@ export class HUD {
   }
 
   onMenu(cb: () => void): void { this._onMenu = cb; }
-  onJump(cb: () => void): void { this._onJump = cb; }
   onInventoryButton(cb: () => void): void { this._onInventory = cb; }
 
   private createButton(label: string, posStyle: Record<string, string>): HTMLButtonElement {

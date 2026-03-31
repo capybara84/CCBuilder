@@ -31,6 +31,17 @@ export class InputManager {
   moveAxisX = 0; // アナログ移動軸（-1〜1）
   moveAxisY = 0;
 
+  // タッチ専用: タップ位置（レイキャスト用、-1 = 無効）
+  private _touchRayX = -1;
+  private _touchRayY = -1;
+
+  // タッチ専用: Build モード上昇/下降フラグ
+  private _touchUp = false;
+  private _touchDown = false;
+
+  // タッチ専用: SELECT モード（G キー相当）
+  touchSelectMode = false;
+
   constructor(private canvas: HTMLCanvasElement) {
     window.addEventListener('keydown', (e) => {
       // 修飾キー付きの場合はゲーム入力として登録しない
@@ -142,6 +153,22 @@ export class InputManager {
            this.moveAxisX !== 0 || this.moveAxisY !== 0;
   }
 
+  // タッチタップ位置（-1 = 無効 → currentHit を使用）
+  get touchRayX(): number { return this._touchRayX; }
+  get touchRayY(): number { return this._touchRayY; }
+
+  // Build ���ード上昇/下降
+  get touchUp(): boolean { return this._touchUp; }
+  get touchDown(): boolean { return this._touchDown; }
+  setTouchUp(v: boolean): void { this._touchUp = v; }
+  setTouchDown(v: boolean): void { this._touchDown = v; }
+
+  /** PLACE ボタン等からタップを強制発火（タッチ座標なし → currentHit を使用） */
+  forceTouchTap(): void {
+    this._mouseLeftJustReleased = true;
+    this._mouseLeftReleaseDuration = 0.1;
+  }
+
   /** フレーム更新（dt秒） */
   update(dt: number): void {
     if (this._mouseLeft) {
@@ -164,15 +191,20 @@ export class InputManager {
       this.moveAxisX = this.touchControls.axisX;
       this.moveAxisY = this.touchControls.axisY;
 
-      // タッチタップ → 短クリックとして注入
+      // タッチタップ → 短クリックとして注入 + タップ座標を保持
       if (this.touchControls.touchTap) {
         this._mouseLeftJustReleased = true;
         this._mouseLeftReleaseDuration = 0.1; // 短タップ扱い
+        this._touchRayX = this.touchControls.touchRayX;
+        this._touchRayY = this.touchControls.touchRayY;
       }
 
       // タッチ長押し → mouseLeftDuration に反映（mouseLeft ゲッターで touchHeld を参照済み）
       if (this.touchControls.touchHeld) {
         this.mouseLeftDuration = this.touchControls.touchHeldDuration;
+        // 長押し中のレイキャスト座標を保持
+        this._touchRayX = this.touchControls.touchRayX;
+        this._touchRayY = this.touchControls.touchRayY;
       }
     }
 
@@ -191,6 +223,8 @@ export class InputManager {
     this.scrollDelta = 0;
     this._mouseLeftJustReleased = false;
     this._cKeyJustReleased = false;
+    this._touchRayX = -1;
+    this._touchRayY = -1;
     this.touchControls?.resetDelta();
   }
 }

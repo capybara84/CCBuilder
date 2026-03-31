@@ -46,6 +46,8 @@ export class Player {
 
   /** 現在のレイキャスト結果（Game側でハイライト表示に使用） */
   currentHit: RaycastHit | null = null;
+  /** タッチタップ/長押し時に使用する上書きレイキャスト結果（null = currentHit を使用） */
+  overrideHit: RaycastHit | null = null;
 
   constructor(
     physicsWorld: RAPIER.World,
@@ -215,8 +217,8 @@ export class Player {
       if (this.input.isDown('KeyA')) move.sub(right);
       if (this.input.isDown('KeyD')) move.add(right);
     }
-    if (this.input.isDown('Space')) move.y += 1;
-    if (this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight')) move.y -= 1;
+    if (this.input.isDown('Space') || this.input.touchUp) move.y += 1;
+    if (this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight') || this.input.touchDown) move.y -= 1;
 
     if (move.lengthSq() > 0) {
       move.normalize().multiplyScalar(BUILD_FLY_SPEED * dt);
@@ -269,13 +271,14 @@ export class Player {
   private handleBlockInteraction(): void {
     // ペーストプレビュー中など、ブロック操作が無効化されている場合はスキップ
     if (this.blockInteractionDisabled) return;
-    if (!this.currentHit) return;
-    const hit = this.currentHit;
+    // タッチ操作時は overrideHit を優先、なければ currentHit
+    const hit = this.overrideHit ?? this.currentHit;
+    if (!hit) return;
     const camPos = this.camera.position;
 
     // 短クリック（離した時） → 設置
-    // G キーが押されている場合は選択範囲操作のため、ブロック設置をスキップ
-    if (this.input.mouseLeftClicked && !this.input.isDown('KeyG')) {
+    // G キーが押されている場合���または touchSelectMode）は選択範囲操作のため、ブロック設置をスキップ
+    if (this.input.mouseLeftClicked && !this.input.isDown('KeyG') && !this.input.touchSelectMode) {
       const placePos = hit.blockPos.clone().add(hit.normal);
       // Walk モードのみ自分との重なりチェック（元の設置位置）
       let overlaps = false;

@@ -125,6 +125,45 @@ export class World {
 
     // rebuildTerrainColliders と同じ表面コライダー方式で再構築
     this.rebuildTerrainColliders();
+
+    // 松明ライトを再生成
+    this.rebuildTorchLights();
+  }
+
+  /** 全松明ライトを再生成（ロード後に呼び出す） */
+  private rebuildTorchLights(): void {
+    // 既存のライトを全削除
+    for (const light of this.torchLights.values()) {
+      this.group.remove(light);
+      light.dispose();
+    }
+    this.torchLights.clear();
+
+    // 全チャンクを走査して松明ブロックのライトを再生成
+    // chunkIndex = cy * CHUNKS_X * CHUNKS_Z + cz * CHUNKS_X + cx
+    for (let ci = 0; ci < this.chunks.length; ci++) {
+      const chunk = this.chunks[ci];
+      const cx = ci % CHUNKS_X;
+      const cz = Math.floor(ci / CHUNKS_X) % CHUNKS_Z;
+      const cy = Math.floor(ci / (CHUNKS_X * CHUNKS_Z));
+      for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+        for (let ly = 0; ly < CHUNK_SIZE; ly++) {
+          for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+            const id = chunk.getBlock(lx, ly, lz);
+            if (id === BlockTypes.TORCH) {
+              const wx = cx * CHUNK_SIZE + lx;
+              const wy = cy * CHUNK_SIZE + ly;
+              const wz = cz * CHUNK_SIZE + lz;
+              const key = `${wx},${wy},${wz}`;
+              const light = new THREE.PointLight(0xffaa44, 1.5, 12, 1);
+              light.position.set(wx + 0.5, wy + 0.8, wz + 0.5);
+              this.group.add(light);
+              this.torchLights.set(key, light);
+            }
+          }
+        }
+      }
+    }
   }
 
   // ワールド座標 → ブロック取得
