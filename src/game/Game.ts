@@ -14,6 +14,8 @@ import { BuildHistory } from './BuildHistory';
 import { SelectionBox } from './SelectionBox';
 import { BuildTools } from './BuildTools';
 import { BuildToolbar } from '../ui/BuildToolbar';
+import { TouchHUD } from '../ui/TouchHUD';
+import { voxelRaycastFromScreen, RaycastHit } from './Raycast';
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
@@ -37,6 +39,7 @@ export class Game {
   private selectionBox = new SelectionBox();
   private buildTools = new BuildTools();
   private buildToolbar: BuildToolbar;
+  private touchHUD: TouchHUD | null = null;
 
   // ペーストプレビュー関連
   /** ペーストプレビューモードが有効か */
@@ -88,9 +91,10 @@ export class Game {
     // 入力
     this.input = new InputManager(canvas);
 
-    // タッチデバイスならタッチコントロールを有効化
+    // タッチデバイスならタッチコントロール＋タッチHUDを有効化
     if (navigator.maxTouchPoints > 0) {
       this.input.touchControls = new TouchControls();
+      this.touchHUD = new TouchHUD();
     }
 
     // ワールド
@@ -274,6 +278,7 @@ export class Game {
           // Walk モードに戻ったら選択範囲もクリア
           this.selectionBox.clear();
         }
+        this.touchHUD?.setMode(this.player.mode);
       }
     });
 
@@ -285,9 +290,15 @@ export class Game {
         this.pause();
       }
     });
-    this.hud.onJump(() => {
-      this.player.triggerJump();
-    });
+    // TouchHUD コールバック接続
+    if (this.touchHUD) {
+      this.touchHUD.onJump(() => this.player.triggerJump());
+      this.touchHUD.onUp((pressing) => this.input.setTouchUp(pressing));
+      this.touchHUD.onDown((pressing) => this.input.setTouchDown(pressing));
+      this.touchHUD.onSelectToggle((active) => { this.input.touchSelectMode = active; });
+      this.touchHUD.onPlace(() => this.input.forceTouchTap());
+      this.touchHUD.onCancel(() => this.exitPastePreview());
+    }
     // ホットバーのインベントリスロットからも開閉できるように接続
     this.hud.hotbar.onInventory(() => {
       if (this.hud.inventory.visible) {
@@ -458,6 +469,7 @@ export class Game {
         // Walk モードに戻ったら選択範囲もクリア
         this.selectionBox.clear();
       }
+      this.touchHUD?.setMode(this.player.mode);
     }
     // 数字キー1-6でホットバー選択
     if (e.code >= 'Digit1' && e.code <= 'Digit6') {
@@ -555,10 +567,26 @@ export class Game {
       // 物理シミュレーション
       this.physicsWorld.step();
 
+      // タッチタップ・長押し時はタッチ座標からレイキャストして overrideHit を設定
+      let touchHit: RaycastHit | null = null;
+      if (this.input.isTouchActive && this.input.touchRayX >= 0) {
+        touchHit = voxelRaycastFromScreen(
+          this.input.touchRayX, this.input.touchRayY,
+          this.player.camera, 8,
+          (x, y, z) => this.world.getBlock(x, y, z),
+        );
+        this.player.overrideHit = touchHit;
+      } else {
+        this.player.overrideHit = null;
+      }
+
       // プレイヤー更新
       this.player.update(dt);
 
-      // ブロックハイライト更新
+      // フレーム末に overrideHit をクリア
+      this.player.overrideHit = null;
+
+      // ブロックハイライト更新（カメラ中心のレイキャスト結果）
       const hit = this.player.currentHit;
       if (hit) {
         this.highlight.visible = true;
@@ -637,14 +665,20 @@ export class Game {
           this.enterPastePreview();
         }
       } else {
-        // G+クリックで選択範囲を設定（ビルドモードのみ）
-        if (this.player.mode === 'build' && this.input.isDown('KeyG') && this.input.mouseLeftClicked && hit) {
+        // G+クリック or タッチSELECTモードで選択範囲を設定（ビルドモードのみ）
+        const isSelectMode = this.input.isDown('KeyG') ||
+          (this.input.isTouchActive && this.touchHUD !== null && this.touchHUD.selectActive);
+        // タッチSELECTモードではタッチ位置の hit を使用
+        const selectHit = touchHit ?? hit;
+        if (this.player.mode === 'build' && isSelectMode && this.input.mouseLeftClicked && selectHit) {
           if (!this.selectionBox.getAABB() || this.selectionBox.isReady) {
             // 未設定 or 両点確定済みの場合 → 新しい start として再開始
-            this.selectionBox.setStart(hit.blockPos);
+            this.selectionBox.setStart(selectHit.blockPos);
           } else {
             // start のみ設定済み → end を設定
-            this.selectionBox.setEnd(hit.blockPos);
+            this.selectionBox.setEnd(selectHit.blockPos);
+            // 2点確定したら SELECT をリセット
+            this.touchHUD?.resetSelect();
           }
           // Copy ボタンと Undo/Redo ボタン状態を更新
           this.updateToolbarState();
@@ -755,6 +789,7 @@ export class Game {
     this.pastePreviewActive = true;
     // ペーストプレビュー中は通常のブロック設置・破壊を無効化
     this.player.blockInteractionDisabled = true;
+    this.touchHUD?.setPastePreview(true);
 
     // クリップボードからプレビューメッシュを生成（1回だけ）
     this.pastePreviewMesh = this.buildPastePreviewMesh();
@@ -769,6 +804,7 @@ export class Game {
     this.pastePreviewActive = false;
     // ブロック操作を再び有効化
     this.player.blockInteractionDisabled = false;
+    this.touchHUD?.setPastePreview(false);
 
     if (this.pastePreviewMesh) {
       this.scene.remove(this.pastePreviewMesh);

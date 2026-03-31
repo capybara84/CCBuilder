@@ -91,3 +91,26 @@ export function voxelRaycast(
 
   return null;
 }
+
+/**
+ * スクリーン座標（clientX/Y）からカメラを通じてボクセルレイキャストを実行する
+ */
+export function voxelRaycastFromScreen(
+  clientX: number,
+  clientY: number,
+  camera: THREE.PerspectiveCamera,
+  maxDist: number,
+  getBlock: (x: number, y: number, z: number) => number,
+): RaycastHit | null {
+  // NDC 変換（-1〜1）
+  const ndcX = (clientX / window.innerWidth) * 2 - 1;
+  const ndcY = -(clientY / window.innerHeight) * 2 + 1;
+
+  // カメラのプロジェクション逆変換でワールド方向を求める
+  const dir = new THREE.Vector3(ndcX, ndcY, 0.5)
+    .unproject(camera)
+    .sub(camera.position)
+    .normalize();
+
+  return voxelRaycast(camera.position, dir, maxDist, getBlock);
+}

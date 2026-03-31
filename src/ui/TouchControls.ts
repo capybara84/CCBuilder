@@ -1,14 +1,18 @@
 /**
  * iPad / タッチデバイス向けバーチャルパッド＋カメラドラッグ
- * - 画面左半分: バーチャルジョイスティック（移動）
- * - 画面右半分: ドラッグでカメラ回転 + タップ/長押しでブロック操作
+ * - 左下固定: バーチャルジョイスティック（移動）— 常時表示
+ * - それ以外: ドラッグでカメラ回転 / タップでブロック設置 / 長押しでブロック破壊
+ *   タップ・長押しはタッチ位置からレイキャストする（カメラ中心ではない）
  */
 
 const MAX_RADIUS = 60;       // ジョイスティック最大半径（px）
 const DEAD_ZONE = 0.15;      // デッドゾーン（0〜1）
 const TAP_MAX_DURATION = 300; // 短タップ判定の最大時間（ms）
-const TAP_MAX_MOVE = 15;     // 短タップ判定の最大移動距離（px）
-const HOLD_THRESHOLD = 500;  // 長押し判定の閾値（ms）
+const TAP_MAX_MOVE = 12;     // 短タップ判定の最大累積移動量（px）
+const DRAG_START_MOVE = 8;   // ドラッグと判定する移動量（px）
+const JOYSTICK_CX = 90;      // パッド中心X（画面左端から）
+const JOYSTICK_CY_RATIO = 0.72; // パッド中心Y（画面高さに対する比率）
+const JOYSTICK_TOUCH_RADIUS = 90; // パッド入力受付半径（px）
 
 export class TouchControls {
   // ジョイスティック出力（-1〜1）
@@ -21,21 +25,24 @@ export class TouchControls {
 
   // ブロック操作出力
   private _touchTap = false;      // 短タップ（1フレーム）
-  private _touchHeld = false;     // 長押し中
+  private _touchHeld = false;     // 長押し中（ドラッグ未開始時のみ）
   touchHeldDuration = 0;          // 長押し経過時間（秒）
+
+  // タッチ位置（タップ・長押し用レイキャスト座標）
+  touchRayX = -1;
+  touchRayY = -1;
 
   // タッチ状態管理
   private joystickTouchId: number | null = null;
-  private joystickOriginX = 0;
-  private joystickOriginY = 0;
+  private joystickCX = JOYSTICK_CX;
+  private joystickCY = 0;
 
   private cameraTouchId: number | null = null;
   private cameraPrevX = 0;
   private cameraPrevY = 0;
-  private cameraStartX = 0;
-  private cameraStartY = 0;
   private cameraStartTime = 0;
   private cameraTotalMove = 0;
+  private _isDragging = false;
 
   // ビジュアル要素
   private outerRing: HTMLDivElement;
@@ -45,7 +52,10 @@ export class TouchControls {
   private _active = false;
 
   constructor() {
-    // ジョイスティックのビジュアル要素
+    // パッド中心Y を計算
+    this.joystickCY = window.innerHeight * JOYSTICK_CY_RATIO;
+
+    // ジョイスティックのビジュアル要素（常時表示）
     this.outerRing = document.createElement('div');
     this.outerRing.style.cssText = `
       position: fixed;
@@ -55,9 +65,10 @@ export class TouchControls {
       border-radius: 50%;
       pointer-events: none;
       z-index: 200;
-      display: none;
+      display: block;
       box-sizing: border-box;
     `;
+    this.positionOuter();
     document.body.appendChild(this.outerRing);
 
     this.innerThumb = document.createElement('div');
@@ -69,8 +80,10 @@ export class TouchControls {
       border-radius: 50%;
       pointer-events: none;
       z-index: 201;
-      display: none;
+      display: block;
+      transition: left 0.1s, top 0.1s;
     `;
+    this.positionThumbCenter();
     document.body.appendChild(this.innerThumb);
 
     // タッチイベント登録
@@ -78,6 +91,15 @@ export class TouchControls {
     document.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false });
     document.addEventListener('touchend', (e) => this.onTouchEnd(e));
     document.addEventListener('touchcancel', (e) => this.onTouchEnd(e));
+
+    // リサイズでパッド位置を再計算
+    window.addEventListener('resize', () => {
+      this.joystickCY = window.innerHeight * JOYSTICK_CY_RATIO;
+      this.positionOuter();
+      if (this.joystickTouchId === null) {
+        this.positionThumbCenter();
+      }
+    });
   }
 
   get active(): boolean {
@@ -95,8 +117,14 @@ export class TouchControls {
   /** UIボタンの上かどうかを判定 */
   private isHudElement(el: EventTarget | null): boolean {
     if (!el || !(el instanceof HTMLElement)) return false;
-    // data-hud 属性を持つ要素またはその子孫
     return el.closest('[data-hud]') !== null;
+  }
+
+  /** タッチ位置がジョイスティック範囲内かどうか */
+  private isInJoystickArea(clientX: number, clientY: number): boolean {
+    const dx = clientX - this.joystickCX;
+    const dy = clientY - this.joystickCY;
+    return Math.sqrt(dx * dx + dy * dy) <= JOYSTICK_TOUCH_RADIUS;
   }
 
   private onTouchStart(e: TouchEvent): void {
@@ -105,29 +133,28 @@ export class TouchControls {
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
 
-      // UI要素の上ならスキップ（通常のクリックイベントに任せる）
+      // UI要素の上ならスキップ
       if (this.isHudElement(touch.target)) continue;
 
-      const halfW = window.innerWidth / 2;
-
-      if (touch.clientX < halfW && this.joystickTouchId === null) {
-        // 左半分 → ジョイスティック
+      if (this.joystickTouchId === null && this.isInJoystickArea(touch.clientX, touch.clientY)) {
+        // ジョイスティック入力
         this.joystickTouchId = touch.identifier;
-        this.joystickOriginX = touch.clientX;
-        this.joystickOriginY = touch.clientY;
         this.axisX = 0;
         this.axisY = 0;
-        this.showJoystick(touch.clientX, touch.clientY);
+        // サムのトランジションを一時無効化（即座に追従させる）
+        this.innerThumb.style.transition = 'none';
         e.preventDefault();
-      } else if (touch.clientX >= halfW && this.cameraTouchId === null) {
-        // 右半分 → カメラ + ブロック操作
+      } else if (this.cameraTouchId === null) {
+        // カメラ + ブロック操作
         this.cameraTouchId = touch.identifier;
         this.cameraPrevX = touch.clientX;
         this.cameraPrevY = touch.clientY;
-        this.cameraStartX = touch.clientX;
-        this.cameraStartY = touch.clientY;
         this.cameraStartTime = performance.now();
         this.cameraTotalMove = 0;
+        this._isDragging = false;
+        // タッチ位置を記録（レイキャスト用）
+        this.touchRayX = touch.clientX;
+        this.touchRayY = touch.clientY;
         this._touchHeld = true;
         this.touchHeldDuration = 0;
         e.preventDefault();
@@ -140,9 +167,9 @@ export class TouchControls {
       const touch = e.changedTouches[i];
 
       if (touch.identifier === this.joystickTouchId) {
-        // ジョイスティック更新
-        const dx = touch.clientX - this.joystickOriginX;
-        const dy = touch.clientY - this.joystickOriginY;
+        // ジョイスティック更新（固定中心からの差分）
+        const dx = touch.clientX - this.joystickCX;
+        const dy = touch.clientY - this.joystickCY;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const clampedDist = Math.min(dist, MAX_RADIUS);
         const normalized = clampedDist / MAX_RADIUS;
@@ -152,14 +179,17 @@ export class TouchControls {
           this.axisY = 0;
         } else {
           const angle = Math.atan2(dy, dx);
-          // デッドゾーンを差し引いてリマップ
           const remapped = (normalized - DEAD_ZONE) / (1 - DEAD_ZONE);
           this.axisX = Math.cos(angle) * remapped;
           this.axisY = -Math.sin(angle) * remapped; // Y軸反転（上がforward=正）
         }
 
-        // ビジュアル更新
-        this.updateThumbPosition(dx, dy, clampedDist, dist);
+        // サムのビジュアル更新
+        const scale = dist > 0 ? clampedDist / dist : 0;
+        const thumbX = this.joystickCX + dx * scale;
+        const thumbY = this.joystickCY + dy * scale;
+        this.innerThumb.style.left = `${thumbX - 25}px`;
+        this.innerThumb.style.top = `${thumbY - 25}px`;
         e.preventDefault();
       }
 
@@ -172,8 +202,17 @@ export class TouchControls {
         this.cameraPrevX = touch.clientX;
         this.cameraPrevY = touch.clientY;
 
-        // 移動量を蓄積（タップ判定用）
+        // 移動量を蓄積
         this.cameraTotalMove += Math.abs(dx) + Math.abs(dy);
+
+        // ドラッグ開始判定
+        if (!this._isDragging && this.cameraTotalMove >= DRAG_START_MOVE) {
+          this._isDragging = true;
+          // ドラッグ確定 → 長押しを無効化
+          this._touchHeld = false;
+          this.touchHeldDuration = 0;
+        }
+
         e.preventDefault();
       }
     }
@@ -187,52 +226,43 @@ export class TouchControls {
         this.joystickTouchId = null;
         this.axisX = 0;
         this.axisY = 0;
-        this.hideJoystick();
+        // サムを中心に戻す（トランジション付き）
+        this.innerThumb.style.transition = 'left 0.1s, top 0.1s';
+        this.positionThumbCenter();
       }
 
       if (touch.identifier === this.cameraTouchId) {
         const elapsed = performance.now() - this.cameraStartTime;
 
-        // 短タップ判定
-        if (elapsed < TAP_MAX_DURATION && this.cameraTotalMove < TAP_MAX_MOVE) {
+        // 短タップ判定（ドラッグでなかった場合のみ）
+        if (!this._isDragging && elapsed < TAP_MAX_DURATION && this.cameraTotalMove < TAP_MAX_MOVE) {
           this._touchTap = true;
+          // touchRayX/Y は onTouchStart で記録した座標をそのまま使用
         }
 
         this.cameraTouchId = null;
         this._touchHeld = false;
         this.touchHeldDuration = 0;
+        this._isDragging = false;
       }
     }
   }
 
   // --- ビジュアル ---
 
-  private showJoystick(cx: number, cy: number): void {
-    this.outerRing.style.display = 'block';
-    this.outerRing.style.left = `${cx - MAX_RADIUS}px`;
-    this.outerRing.style.top = `${cy - MAX_RADIUS}px`;
-
-    this.innerThumb.style.display = 'block';
-    this.innerThumb.style.left = `${cx - 25}px`;
-    this.innerThumb.style.top = `${cy - 25}px`;
+  private positionOuter(): void {
+    this.outerRing.style.left = `${this.joystickCX - MAX_RADIUS}px`;
+    this.outerRing.style.top = `${this.joystickCY - MAX_RADIUS}px`;
   }
 
-  private hideJoystick(): void {
-    this.outerRing.style.display = 'none';
-    this.innerThumb.style.display = 'none';
-  }
-
-  private updateThumbPosition(dx: number, dy: number, clampedDist: number, rawDist: number): void {
-    const scale = rawDist > 0 ? clampedDist / rawDist : 0;
-    const thumbX = this.joystickOriginX + dx * scale;
-    const thumbY = this.joystickOriginY + dy * scale;
-    this.innerThumb.style.left = `${thumbX - 25}px`;
-    this.innerThumb.style.top = `${thumbY - 25}px`;
+  private positionThumbCenter(): void {
+    this.innerThumb.style.left = `${this.joystickCX - 25}px`;
+    this.innerThumb.style.top = `${this.joystickCY - 25}px`;
   }
 
   /** 毎フレーム呼ばれる（長押し時間の更新） */
   update(dt: number): void {
-    if (this._touchHeld && this.cameraTouchId !== null) {
+    if (this._touchHeld && this.cameraTouchId !== null && !this._isDragging) {
       this.touchHeldDuration += dt;
     }
   }
