@@ -8,11 +8,14 @@
 
 import { GameMode } from '../game/Player';
 
+const IS_LARGE = window.innerWidth >= 768;
+const EDGE = IS_LARGE ? 24 : 16; // 画面端からの距離
+
 const BTN_STYLE = `
-  padding: 10px 18px;
+  padding: ${IS_LARGE ? '14px 22px' : '10px 18px'};
   border: 1px solid rgba(255,255,255,0.3);
   border-radius: 6px;
-  font-size: 14px;
+  font-size: ${IS_LARGE ? '16px' : '14px'};
   font-family: monospace;
   font-weight: bold;
   cursor: pointer;
@@ -22,8 +25,8 @@ const BTN_STYLE = `
   user-select: none;
   -webkit-user-select: none;
   touch-action: manipulation;
-  min-width: 52px;
-  min-height: 52px;
+  min-width: ${IS_LARGE ? '60px' : '52px'};
+  min-height: ${IS_LARGE ? '60px' : '52px'};
   text-align: center;
 `;
 
@@ -55,8 +58,8 @@ export class TouchHUD {
     // JUMP（Walk モード、右下）
     this.jumpButton = this.createButton('JUMP', {
       position: 'fixed',
-      bottom: '90px',
-      right: '16px',
+      bottom: `calc(90px + var(--sab))`,
+      right: `calc(${EDGE}px + var(--sar))`,
       zIndex: '20',
     });
     this.jumpButton.addEventListener('touchstart', (e) => {
@@ -64,11 +67,26 @@ export class TouchHUD {
       this._onJump?.();
     });
 
+    // SELECT（Build モード、右側 — 上下ボタンの上）
+    this.selectButton = this.createButton('SELECT', {
+      position: 'fixed',
+      bottom: `calc(210px + var(--sab))`,
+      right: `calc(${EDGE}px + var(--sar))`,
+      zIndex: '20',
+    });
+    this.selectButton.style.display = 'none';
+    this.selectButton.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      this._selectActive = !this._selectActive;
+      this.updateSelectStyle();
+      this._onSelectToggle?.(this._selectActive);
+    });
+
     // ▲ UP（Build モード、右下上段）
     this.upButton = this.createButton('▲', {
       position: 'fixed',
-      bottom: '150px',
-      right: '16px',
+      bottom: `calc(150px + var(--sab))`,
+      right: `calc(${EDGE}px + var(--sar))`,
       zIndex: '20',
     });
     this.upButton.style.display = 'none';
@@ -81,8 +99,8 @@ export class TouchHUD {
     // ▼ DN（Build モード、右下下段）
     this.downButton = this.createButton('▼', {
       position: 'fixed',
-      bottom: '90px',
-      right: '16px',
+      bottom: `calc(90px + var(--sab))`,
+      right: `calc(${EDGE}px + var(--sar))`,
       zIndex: '20',
     });
     this.downButton.style.display = 'none';
@@ -92,27 +110,11 @@ export class TouchHUD {
     this.downButton.addEventListener('touchend', dnEnd);
     this.downButton.addEventListener('touchcancel', dnEnd);
 
-    // SELECT（Build モード、右側中段）
-    this.selectButton = this.createButton('SELECT', {
-      position: 'fixed',
-      bottom: '50%',
-      right: '16px',
-      transform: 'translateY(50%)',
-      zIndex: '20',
-    });
-    this.selectButton.style.display = 'none';
-    this.selectButton.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      this._selectActive = !this._selectActive;
-      this.updateSelectStyle();
-      this._onSelectToggle?.(this._selectActive);
-    });
-
     // PLACE（ペーストプレビュー中、右下）
     this.placeButton = this.createButton('PLACE', {
       position: 'fixed',
-      bottom: '90px',
-      right: '100px',
+      bottom: `calc(90px + var(--sab))`,
+      right: `calc(100px + var(--sar))`,
       zIndex: '20',
       minWidth: '80px',
     });
@@ -125,8 +127,8 @@ export class TouchHUD {
     // CANCEL（ペーストプレビュー中、その右横）
     this.cancelButton = this.createButton('CANCEL', {
       position: 'fixed',
-      bottom: '90px',
-      right: '16px',
+      bottom: `calc(90px + var(--sab))`,
+      right: `calc(${EDGE}px + var(--sar))`,
       zIndex: '20',
       minWidth: '80px',
     });

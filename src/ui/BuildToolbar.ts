@@ -848,22 +848,40 @@ export class BuildToolbar {
 
   /** クリップボードにデータがあるか（Templates パネルの Save ボタン有効化に使用） */
   private _hasClipboardForPanel = false;
+  private _isMobile = false;
 
   constructor() {
-    // ツールバーコンテナ（画面左側に縦並び）
+    // ツールバーコンテナ（画面左側）
+    const isMobile = 'ontouchstart' in window && window.innerHeight < 500;
+    this._isMobile = isMobile;
     this.container = document.createElement('div');
-    this.container.style.cssText = `
-      position: fixed;
-      left: 16px;
-      top: 60px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      z-index: 20;
-      width: 90px;
-    `;
+    if (isMobile) {
+      // モバイル横向き: 2列グリッドでコンパクトに
+      this.container.style.cssText = `
+        position: fixed;
+        left: calc(12px + var(--sal));
+        top: calc(50px + var(--sat));
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px;
+        z-index: 20;
+        width: 160px;
+      `;
+    } else {
+      this.container.style.cssText = `
+        position: fixed;
+        left: calc(16px + var(--sal));
+        top: calc(60px + var(--sat));
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        z-index: 20;
+        width: 90px;
+      `;
+    }
     // 初期状態は非表示（ビルドモード時のみ表示）
     this.container.style.display = 'none';
+    this.container.dataset.hud = 'true';
 
     // Undo ボタン
     this.undoButton = this.createButton('↩ Undo', () => this._onUndo?.());
@@ -939,18 +957,30 @@ export class BuildToolbar {
     hint.textContent = 'G+Click:\nSelect';
     hint.style.whiteSpace = 'pre';
 
-    this.container.appendChild(this.undoButton);
-    this.container.appendChild(this.redoButton);
-    this.container.appendChild(divider);
-    this.container.appendChild(this.fillButton);
-    this.container.appendChild(this.replaceButton);
-    this.container.appendChild(this.copyButton);
-    this.container.appendChild(this.pasteButton);
-    this.container.appendChild(divider2);
-    this.container.appendChild(this.mirrorButton);
-    this.container.appendChild(divider3);
-    this.container.appendChild(this.templatesButton);
-    this.container.appendChild(hint);
+    if (isMobile) {
+      // モバイル: 2列グリッド（区切り線・ヒントは省略）
+      this.container.appendChild(this.undoButton);
+      this.container.appendChild(this.redoButton);
+      this.container.appendChild(this.fillButton);
+      this.container.appendChild(this.replaceButton);
+      this.container.appendChild(this.copyButton);
+      this.container.appendChild(this.pasteButton);
+      this.container.appendChild(this.mirrorButton);
+      this.container.appendChild(this.templatesButton);
+    } else {
+      this.container.appendChild(this.undoButton);
+      this.container.appendChild(this.redoButton);
+      this.container.appendChild(divider);
+      this.container.appendChild(this.fillButton);
+      this.container.appendChild(this.replaceButton);
+      this.container.appendChild(this.copyButton);
+      this.container.appendChild(this.pasteButton);
+      this.container.appendChild(divider2);
+      this.container.appendChild(this.mirrorButton);
+      this.container.appendChild(divider3);
+      this.container.appendChild(this.templatesButton);
+      this.container.appendChild(hint);
+    }
 
     document.body.appendChild(this.container);
 
@@ -1187,9 +1217,21 @@ export class BuildToolbar {
     const btn = document.createElement('button');
     btn.textContent = label;
     btn.style.cssText = BTN_STYLE;
+    if (this._isMobile) {
+      btn.style.padding = '6px 8px';
+      btn.style.fontSize = '11px';
+    }
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       onClick();
+    });
+    btn.addEventListener('touchstart', (e) => {
+      e.stopPropagation();
+    });
+    btn.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!btn.disabled) onClick();
     });
     btn.addEventListener('mouseenter', () => {
       if (!btn.disabled) {

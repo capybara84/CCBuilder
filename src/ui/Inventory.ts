@@ -47,6 +47,7 @@ export class Inventory {
     this.container = document.createElement('div');
     this.container.id = 'inventory';
     this.container.dataset.hud = 'true';
+    const isMobile = 'ontouchstart' in window && window.innerHeight < 500;
     this.container.style.cssText = `
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -54,7 +55,7 @@ export class Inventory {
       display: none;
       justify-content: center;
       align-items: flex-start;
-      padding-top: 40px;
+      padding-top: ${isMobile ? '4px' : '40px'};
       z-index: 50;
       pointer-events: none;
     `;
@@ -64,9 +65,9 @@ export class Inventory {
       background: rgba(30, 30, 40, 0.95);
       border: 2px solid rgba(255, 255, 255, 0.2);
       border-radius: 8px;
-      padding: 20px;
+      padding: ${isMobile ? '8px 12px' : '20px'};
       pointer-events: auto;
-      max-height: 80vh;
+      max-height: ${isMobile ? 'calc(100vh - 8px)' : '80vh'};
       display: flex;
       flex-direction: column;
     `;
@@ -76,10 +77,10 @@ export class Inventory {
     title.textContent = 'INVENTORY';
     title.style.cssText = `
       color: white;
-      font-size: 18px;
+      font-size: ${isMobile ? '13px' : '18px'};
       font-weight: bold;
       text-align: center;
-      margin-bottom: 10px;
+      margin-bottom: ${isMobile ? '4px' : '10px'};
       letter-spacing: 3px;
     `;
     panel.appendChild(title);
@@ -89,9 +90,9 @@ export class Inventory {
     hint.textContent = 'Select a block, then click a hotbar slot';
     hint.style.cssText = `
       color: #aaa;
-      font-size: 11px;
+      font-size: ${isMobile ? '10px' : '11px'};
       text-align: center;
-      margin-bottom: 10px;
+      margin-bottom: ${isMobile ? '4px' : '10px'};
     `;
     panel.appendChild(hint);
 
@@ -107,8 +108,7 @@ export class Inventory {
       const btn = document.createElement('button');
       btn.textContent = cat.name;
       btn.style.cssText = this.tabStyle(i === 0);
-      btn.addEventListener('click', () => this.switchTab(i));
-      btn.addEventListener('touchstart', (e) => {
+      btn.addEventListener('click', (e) => {
         e.preventDefault();
         this.switchTab(i);
       });
@@ -121,10 +121,12 @@ export class Inventory {
     this.grid = document.createElement('div');
     this.grid.style.cssText = `
       display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: 6px;
+      grid-template-columns: repeat(${isMobile ? 8 : 6}, 1fr);
+      gap: ${isMobile ? '4px' : '6px'};
       overflow-y: auto;
-      max-height: 50vh;
+      -webkit-overflow-scrolling: touch;
+      flex: 1;
+      min-height: 0;
     `;
     panel.appendChild(this.grid);
 
@@ -142,8 +144,7 @@ export class Inventory {
       border-radius: 4px;
       cursor: pointer;
     `;
-    closeBtn.addEventListener('click', () => this._onClose?.());
-    closeBtn.addEventListener('touchstart', (e) => {
+    closeBtn.addEventListener('click', (e) => {
       e.preventDefault();
       this._onClose?.();
     });
@@ -219,10 +220,7 @@ export class Inventory {
 
     cell.appendChild(swatch);
     cell.appendChild(label);
-    cell.addEventListener('click', () => {
-      this.toggleSelect(block.id);
-    });
-    cell.addEventListener('touchstart', (e) => {
+    cell.addEventListener('click', (e) => {
       e.preventDefault();
       this.toggleSelect(block.id);
     });

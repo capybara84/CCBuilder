@@ -16,6 +16,7 @@ import { BuildTools } from './BuildTools';
 import { BuildToolbar } from '../ui/BuildToolbar';
 import { TouchHUD } from '../ui/TouchHUD';
 import { voxelRaycastFromScreen, RaycastHit } from './Raycast';
+import { getPlatformConfig, PlatformConfig } from './PlatformSettings';
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
@@ -40,6 +41,7 @@ export class Game {
   private buildTools = new BuildTools();
   private buildToolbar: BuildToolbar;
   private touchHUD: TouchHUD | null = null;
+  private platform: PlatformConfig;
 
   // ペーストプレビュー関連
   /** ペーストプレビューモードが有効か */
@@ -52,10 +54,13 @@ export class Game {
     canvas: HTMLCanvasElement,
     private physicsWorld: RAPIER.World,
   ) {
+    // プラットフォーム設定
+    this.platform = getPlatformConfig();
+
     // レンダラー
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.platform.antialias });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.platform.maxPixelRatio));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     // シーン
@@ -66,7 +71,7 @@ export class Game {
     this.scene.add(this.sky.group);
 
     // フォグ（スカイドームの地平線色と合わせる）
-    this.scene.fog = new THREE.Fog(this.sky.fogColor, 50, 150);
+    this.scene.fog = new THREE.Fog(this.sky.fogColor, this.platform.fogNear, this.platform.fogFar);
     this.renderer.setClearColor(this.sky.fogColor);
 
     // ライト
@@ -75,8 +80,8 @@ export class Game {
     this.sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
     this.sunLight.position.set(50, 100, 30);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.width = 2048;
-    this.sunLight.shadow.mapSize.height = 2048;
+    this.sunLight.shadow.mapSize.width = this.platform.shadowMapSize;
+    this.sunLight.shadow.mapSize.height = this.platform.shadowMapSize;
     this.sunLight.shadow.camera.near = 0.5;
     this.sunLight.shadow.camera.far = 200;
     this.sunLight.shadow.camera.left = -60;
@@ -99,6 +104,7 @@ export class Game {
 
     // ワールド
     this.world = new World(physicsWorld);
+    this.world.maxTorchLights = this.platform.maxTorchLights;
     this.scene.add(this.world.group);
 
     // プレイヤー
@@ -923,6 +929,7 @@ export class Game {
 
   private onResize(): void {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.platform.maxPixelRatio));
     this.player.onResize();
   }
 }

@@ -1,3 +1,7 @@
 node_modules/
 dist/
 .claude/
+
+# Capacitor (cap sync で生成される)
+ios/App/App/public/
+ios/App/Pods/

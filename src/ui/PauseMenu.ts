@@ -78,7 +78,11 @@ export class PauseMenu {
       });
       btn.addEventListener('click', handler);
       btn.addEventListener('touchstart', (e) => {
+        e.stopPropagation();
+      });
+      btn.addEventListener('touchend', (e) => {
         e.preventDefault();
+        e.stopPropagation();
         handler();
       });
       panel.appendChild(btn);

@@ -5,14 +5,22 @@
  *   タップ・長押しはタッチ位置からレイキャストする（カメラ中心ではない）
  */
 
-const MAX_RADIUS = 60;       // ジョイスティック最大半径（px）
 const DEAD_ZONE = 0.15;      // デッドゾーン（0〜1）
 const TAP_MAX_DURATION = 300; // 短タップ判定の最大時間（ms）
 const TAP_MAX_MOVE = 12;     // 短タップ判定の最大累積移動量（px）
 const DRAG_START_MOVE = 8;   // ドラッグと判定する移動量（px）
-const JOYSTICK_CX = 90;      // パッド中心X（画面左端から）
 const JOYSTICK_CY_RATIO = 0.72; // パッド中心Y（画面高さに対する比率）
-const JOYSTICK_TOUCH_RADIUS = 90; // パッド入力受付半径（px）
+
+/** iPad等の大画面ではジョイスティックを拡大 */
+function getJoystickLayout() {
+  const isLarge = window.innerWidth >= 768;
+  return {
+    cx: isLarge ? 120 : 90,
+    maxRadius: isLarge ? 75 : 60,
+    touchRadius: isLarge ? 110 : 90,
+    thumbSize: isLarge ? 60 : 50,
+  };
+}
 
 export class TouchControls {
   // ジョイスティック出力（-1〜1）
@@ -34,8 +42,11 @@ export class TouchControls {
 
   // タッチ状態管理
   private joystickTouchId: number | null = null;
-  private joystickCX = JOYSTICK_CX;
+  private joystickCX = 0;
   private joystickCY = 0;
+  private maxRadius = 60;
+  private touchRadius = 90;
+  private thumbSize = 50;
 
   private cameraTouchId: number | null = null;
   private cameraPrevX = 0;
@@ -52,15 +63,15 @@ export class TouchControls {
   private _active = false;
 
   constructor() {
-    // パッド中心Y を計算
-    this.joystickCY = window.innerHeight * JOYSTICK_CY_RATIO;
+    // レイアウト計算
+    this.updateLayout();
 
     // ジョイスティックのビジュアル要素（常時表示）
     this.outerRing = document.createElement('div');
     this.outerRing.style.cssText = `
       position: fixed;
-      width: ${MAX_RADIUS * 2}px;
-      height: ${MAX_RADIUS * 2}px;
+      width: ${this.maxRadius * 2}px;
+      height: ${this.maxRadius * 2}px;
       border: 2px solid rgba(255, 255, 255, 0.3);
       border-radius: 50%;
       pointer-events: none;
@@ -74,8 +85,8 @@ export class TouchControls {
     this.innerThumb = document.createElement('div');
     this.innerThumb.style.cssText = `
       position: fixed;
-      width: 50px;
-      height: 50px;
+      width: ${this.thumbSize}px;
+      height: ${this.thumbSize}px;
       background: rgba(255, 255, 255, 0.35);
       border-radius: 50%;
       pointer-events: none;
@@ -92,9 +103,13 @@ export class TouchControls {
     document.addEventListener('touchend', (e) => this.onTouchEnd(e));
     document.addEventListener('touchcancel', (e) => this.onTouchEnd(e));
 
-    // リサイズでパッド位置を再計算
+    // リサイズでパッド位置・サイズを再計算
     window.addEventListener('resize', () => {
-      this.joystickCY = window.innerHeight * JOYSTICK_CY_RATIO;
+      this.updateLayout();
+      this.outerRing.style.width = `${this.maxRadius * 2}px`;
+      this.outerRing.style.height = `${this.maxRadius * 2}px`;
+      this.innerThumb.style.width = `${this.thumbSize}px`;
+      this.innerThumb.style.height = `${this.thumbSize}px`;
       this.positionOuter();
       if (this.joystickTouchId === null) {
         this.positionThumbCenter();
@@ -120,11 +135,21 @@ export class TouchControls {
     return el.closest('[data-hud]') !== null;
   }
 
+  /** レイアウト値を（再）計算 */
+  private updateLayout(): void {
+    const layout = getJoystickLayout();
+    this.joystickCX = layout.cx;
+    this.joystickCY = window.innerHeight * JOYSTICK_CY_RATIO;
+    this.maxRadius = layout.maxRadius;
+    this.touchRadius = layout.touchRadius;
+    this.thumbSize = layout.thumbSize;
+  }
+
   /** タッチ位置がジョイスティック範囲内かどうか */
   private isInJoystickArea(clientX: number, clientY: number): boolean {
     const dx = clientX - this.joystickCX;
     const dy = clientY - this.joystickCY;
-    return Math.sqrt(dx * dx + dy * dy) <= JOYSTICK_TOUCH_RADIUS;
+    return Math.sqrt(dx * dx + dy * dy) <= this.touchRadius;
   }
 
   private onTouchStart(e: TouchEvent): void {
@@ -171,8 +196,8 @@ export class TouchControls {
         const dx = touch.clientX - this.joystickCX;
         const dy = touch.clientY - this.joystickCY;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const clampedDist = Math.min(dist, MAX_RADIUS);
-        const normalized = clampedDist / MAX_RADIUS;
+        const clampedDist = Math.min(dist, this.maxRadius);
+        const normalized = clampedDist / this.maxRadius;
 
         if (normalized < DEAD_ZONE) {
           this.axisX = 0;
@@ -188,8 +213,9 @@ export class TouchControls {
         const scale = dist > 0 ? clampedDist / dist : 0;
         const thumbX = this.joystickCX + dx * scale;
         const thumbY = this.joystickCY + dy * scale;
-        this.innerThumb.style.left = `${thumbX - 25}px`;
-        this.innerThumb.style.top = `${thumbY - 25}px`;
+        const halfThumb = this.thumbSize / 2;
+        this.innerThumb.style.left = `${thumbX - halfThumb}px`;
+        this.innerThumb.style.top = `${thumbY - halfThumb}px`;
         e.preventDefault();
       }
 
@@ -251,13 +277,14 @@ export class TouchControls {
   // --- ビジュアル ---
 
   private positionOuter(): void {
-    this.outerRing.style.left = `${this.joystickCX - MAX_RADIUS}px`;
-    this.outerRing.style.top = `${this.joystickCY - MAX_RADIUS}px`;
+    this.outerRing.style.left = `${this.joystickCX - this.maxRadius}px`;
+    this.outerRing.style.top = `${this.joystickCY - this.maxRadius}px`;
   }
 
   private positionThumbCenter(): void {
-    this.innerThumb.style.left = `${this.joystickCX - 25}px`;
-    this.innerThumb.style.top = `${this.joystickCY - 25}px`;
+    const halfThumb = this.thumbSize / 2;
+    this.innerThumb.style.left = `${this.joystickCX - halfThumb}px`;
+    this.innerThumb.style.top = `${this.joystickCY - halfThumb}px`;
   }
 
   /** 毎フレーム呼ばれる（長押し時間の更新） */
