@@ -32,7 +32,7 @@ export class Hotbar {
     container.dataset.hud = 'true';
     container.style.cssText = `
       position: fixed;
-      bottom: 16px;
+      bottom: calc(16px + var(--sab));
       left: 50%;
       transform: translateX(-50%);
       display: flex;

@@ -47,9 +47,9 @@ export class HUD {
     // 左上: MENU ボタン
     this.menuButton = this.createButton('MENU', {
       position: 'fixed',
-      top: '16px',
-      left: '16px',
-      zIndex: '20',
+      top: 'calc(16px + var(--sat))',
+      left: 'calc(16px + var(--sal))',
+      zIndex: '30',
     });
     this.menuButton.dataset.hud = 'true';
     this.menuButton.addEventListener('click', () => this._onMenu?.());
@@ -61,8 +61,8 @@ export class HUD {
     // INVENTORY ボタン
     this.inventoryButton = this.createButton('INVENTORY', {
       position: 'fixed',
-      bottom: '145px',
-      right: '16px',
+      bottom: 'calc(145px + var(--sab))',
+      right: 'calc(16px + var(--sar))',
       zIndex: '20',
     });
     this.inventoryButton.dataset.hud = 'true';
@@ -144,8 +144,8 @@ export class HUD {
     const el = document.createElement('div');
     el.style.cssText = `
       position: fixed;
-      top: 54px;
-      right: 16px;
+      top: calc(54px + var(--sat));
+      right: calc(16px + var(--sar));
       color: rgba(255,255,255,0.8);
       font-size: 14px;
       font-family: monospace;
@@ -164,8 +164,8 @@ export class HUD {
     el.id = 'save-hint';
     el.style.cssText = `
       position: fixed;
-      bottom: 16px;
-      right: 16px;
+      bottom: calc(16px + var(--sab));
+      right: calc(16px + var(--sar));
       color: rgba(255,255,255,0.4);
       font-size: 11px;
       font-family: monospace;

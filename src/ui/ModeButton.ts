@@ -14,8 +14,8 @@ export class ModeButton {
     container.dataset.hud = 'true';
     container.style.cssText = `
       position: fixed;
-      top: 16px;
-      right: 16px;
+      top: calc(16px + var(--sat));
+      right: calc(16px + var(--sar));
       display: flex;
       gap: 4px;
       z-index: 20;

@@ -18,6 +18,8 @@ export class World {
   // ブロック座標 → コライダーハンドルのマップ（地面以外の設置ブロック用）
   private blockColliders = new Map<string, { body: RAPIER.RigidBody; collider: RAPIER.Collider }>();
   private torchLights = new Map<string, THREE.PointLight>();
+  /** 松明PointLightの最大数（モバイル向けに制限） */
+  maxTorchLights = Infinity;
   private frustum = new THREE.Frustum();
   private projScreenMatrix = new THREE.Matrix4();
 
@@ -151,6 +153,7 @@ export class World {
           for (let lx = 0; lx < CHUNK_SIZE; lx++) {
             const id = chunk.getBlock(lx, ly, lz);
             if (id === BlockTypes.TORCH) {
+              if (this.torchLights.size >= this.maxTorchLights) continue;
               const wx = cx * CHUNK_SIZE + lx;
               const wy = cy * CHUNK_SIZE + ly;
               const wz = cz * CHUNK_SIZE + lz;
@@ -227,11 +230,13 @@ export class World {
       }
     }
     if (id === BlockTypes.TORCH && oldId !== BlockTypes.TORCH) {
-      // 松明が設置された → PointLight作成
-      const light = new THREE.PointLight(0xffaa44, 1.5, 12, 1);
-      light.position.set(wx + 0.5, wy + 0.8, wz + 0.5);
-      this.group.add(light);
-      this.torchLights.set(key, light);
+      // 松明が設置された → PointLight作成（上限チェック）
+      if (this.torchLights.size < this.maxTorchLights) {
+        const light = new THREE.PointLight(0xffaa44, 1.5, 12, 1);
+        light.position.set(wx + 0.5, wy + 0.8, wz + 0.5);
+        this.group.add(light);
+        this.torchLights.set(key, light);
+      }
     }
 
     // 境界ブロックの場合は隣接チャンクも再構築
@@ -314,10 +319,12 @@ export class World {
         }
       }
       if (id === BlockTypes.TORCH && oldId !== BlockTypes.TORCH) {
-        const light = new THREE.PointLight(0xffaa44, 1.5, 12, 1);
-        light.position.set(wx + 0.5, wy + 0.8, wz + 0.5);
-        this.group.add(light);
-        this.torchLights.set(key, light);
+        if (this.torchLights.size < this.maxTorchLights) {
+          const light = new THREE.PointLight(0xffaa44, 1.5, 12, 1);
+          light.position.set(wx + 0.5, wy + 0.8, wz + 0.5);
+          this.group.add(light);
+          this.torchLights.set(key, light);
+        }
       }
 
       // 境界ブロックの場合は隣接チャンクもダーティに追加
